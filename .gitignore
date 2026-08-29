@@ -1,0 +1,106 @@
+# ndeko harness — .gitignore
+#
+# This tree is meant to be clonable and to stay CLEAN during normal operation.
+# The system it replaces left session runtime untracked-but-not-ignored, so the
+# working tree was permanently dirty (8 of 14 dirty entries at audit time were
+# session state). Everything the harness writes at runtime belongs here.
+
+# ─── Secrets. Never in this repo, even ignored. Canonical home is the data tree.
+.env
+.env.*
+*.pem
+*.key
+
+# ─── Dependencies
+node_modules/
+bun.lockb
+
+# ─── Session + agent runtime (the dirty-tree class)
+teams/
+daemon/
+daemon.lock
+daemon.status.json
+daemon.log
+jobs/
+*.lock
+.last_inuse_sweep
+.last-update-result.json
+
+# ─── Harness-managed runtime state
+# .claude.json and backups/ are created the first time the harness runs against
+# this config dir — found by running `claude auto-mode config` and watching the
+# tree go dirty, which is exactly the class this section exists to prevent.
+.claude.json
+.claude.json.backup
+backups/
+projects/
+plugins/cache/
+plugins/data/
+plugins/marketplaces/
+plugins/*.json
+shell-snapshots/
+statsig/
+todos/
+history.jsonl
+remote-settings.json
+policy-limits.json
+stats-cache.json
+settings.local.json
+mcp-needs-auth-cache.json
+.last-cleanup
+
+# ─── Per-session runtime. Same class as teams/ above, found the same way.
+# These hold transcripts, pasted content, and file snapshots — personal data by
+# definition, in a repo whose rule is that none belongs here. `tasks/` and
+# `session-env/` were invisible at audit time only because git does not track
+# empty directories; they would have appeared with the first file written.
+sessions/
+tasks/
+session-env/
+file-history/
+# `feedback/` holds locally-queued product-feedback drafts, which quote the
+# session verbatim and carry absolute paths. Found the way the two above were:
+# the privacy gate refused a commit that had swept it in. `ide/` is the same
+# class and was invisible for the same reason -- git does not track an empty
+# directory, so it had never appeared in `git status`.
+feedback/
+ide/
+
+# ─── Generated Python venv for the Chatterbox voice toolchain (~1.3G).
+# The source (chatterbox, cli.py, setup.sh) IS tracked; the venv is rebuilt by
+# setup.sh on first run. Ignored because pushing 1.3G of wheels to a git remote
+# is the kind of mistake that is very annoying to undo.
+tools/chatterbox/venv/
+__pycache__/
+*.pyc
+
+# ─── Caches the harness fills in the background.
+cache/
+paste-cache/
+image-cache/
+chrome/
+
+# ─── Logs. daemon.log is listed above; this catches the rest, including the
+# git-push launchd logs that grow continuously.
+*.log
+
+# ─── Local settings overlay (machine-specific, not portable)
+settings.user.json
+
+# ─── Private skills.
+# The leading underscore is the public/private boundary. These encode customer
+# or employer specifics — real customer IDs, internal org structure, account
+# names — so they live on this machine and load normally, but never enter the
+# repo. A fresh clone gets the harness without them, which is correct: that
+# tooling shouldn't travel.
+skills/_*/
+
+# ─── Anything data-shaped that leaks in by accident.
+# The data tree lives outside this repo on purpose; these are tripwires.
+memory/
+identity/
+goals.md
+state/
+
+# ─── OS noise
+.DS_Store

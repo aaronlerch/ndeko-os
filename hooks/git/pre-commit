@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# pre-commit — refuse to record anything that must not become public.
+#
+# WHY THIS FILE IS TRACKED AND .git/hooks IS NOT USED
+#
+# `.git/hooks/` is per-clone and never travels with the repository, so a hook
+# living there protects exactly one machine and silently protects nothing on a
+# fresh clone. Git's `core.hooksPath` redirects hook lookup at a tracked
+# directory instead, which makes the gate part of the artifact. `install.sh`
+# sets it; `install.sh --check` reports when it is unset.
+#
+# The check itself is `tools/privacy-scan.ts --staged`, which is the same code
+# the pre-release audit runs with `--all`. Keeping one implementation is the
+# point: a release audit that had drifted weaker than the commit gate would be
+# worse than no audit, because it would still read as a pass.
+#
+# Bypass with `git commit --no-verify` when you mean to.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+if ! command -v bun >/dev/null 2>&1; then
+  # Fail CLOSED. This hook exists because the consequence of a miss is
+  # permanent and public, which is not a risk worth trading for the
+  # convenience of committing on a box that cannot run the check.
+  printf '\npre-commit: bun not found on PATH — cannot run the privacy scan.\n' >&2
+  printf '            Install bun, or commit with --no-verify if you are certain.\n\n' >&2
+  exit 1
+fi
+
+exec bun "$REPO_ROOT/tools/privacy-scan.ts" --staged

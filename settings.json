@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "cleanupPeriodDays": 90,
+  "env": {
+    "NDEKO_DIR": "$HOME/.claude",
+    "NDEKO_DATA_DIR": "$HOME/.config/ndeko-os",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+    "OTEL_TRACES_EXPORTER": "otlp",
+    "CLAUDE_CODE_OTEL_DIAG_STDERR": "1",
+    "BASH_DEFAULT_TIMEOUT_MS": "600000",
+    "API_TIMEOUT_MS": "1800000",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "includeCoAuthoredBy": false,
+  "includeGitInstructions": false,
+  "permissions": {
+    "allow": [
+      "Read(//Users/**)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(rg:*)",
+      "Bash(ast-grep:*)",
+      "Bash(fd:*)",
+      "Bash(bat:*)",
+      "Bash(wc:*)",
+      "Bash(bun test:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(bunx biome:*)"
+    ],
+    "deny": [
+      "Read(//Users/**/.ssh/**)",
+      "Read(//Users/**/.aws/**)",
+      "Read(//Users/**/.gnupg/**)",
+      "Read(//Users/**/.config/gh/hosts.yml)",
+      "Read(//Users/**/Library/Keychains/**)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Read(//**/id_rsa)",
+      "Read(//**/id_ed25519)",
+      "Edit(//Users/**/.ssh/**)",
+      "Edit(//**/.env)",
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)",
+      "Bash(rm -rf $HOME:*)",
+      "Bash(mkfs:*)",
+      "Bash(dd of=/dev/:*)",
+      "Bash(chmod -R 777:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push public:*)",
+      "Bash(git push --all:*)",
+      "Bash(claude --bare:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(git update-ref -d:*)",
+      "Bash(gdb -p:*)",
+      "Bash(lldb -p:*)",
+      "Bash(strace -p:*)",
+      "Bash(dtrace:*)",
+      "Bash(nc -l:*)",
+      "Bash(nc -e:*)"
+    ],
+    "ask": [
+      "Bash(gh release:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(npm publish:*)"
+    ],
+    "defaultMode": "auto",
+    "additionalDirectories": []
+  },
+  "model": "opus",
+  "skillOverrides": {
+    "ApertureOscillation": "user-invocable-only",
+    "ISA": "user-invocable-only",
+    "IterativeDepth": "user-invocable-only"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/BillingGuard.hook.ts",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/Toolbelt.hook.ts",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "WebFetch|WebSearch|ToolSearch|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/Taint.hook.ts",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/MemoryProvenance.hook.ts",
+            "timeout": 10,
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/MemoryReconcile.hook.ts",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|WebFetch|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/Taint.hook.ts",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/PrivacyBoundary.hook.ts",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/CatastrophicGuard.hook.ts",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/VerificationGate.hook.ts",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  },
+  "worktree": {
+    "sparsePaths": [],
+    "baseRef": "fresh"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "$HOME/.claude/tools/statusline.sh",
+    "refreshInterval": 5
+  },
+  "enabledPlugins": {},
+  "effortLevel": "high",
+  "promptSuggestionEnabled": false,
+  "askUserQuestionTimeout": "never",
+  "plansDirectory": "Plans/",
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "autoMemoryEnabled": true,
+  "autoMemoryDirectory": "~/.config/ndeko-os/memory",
+  "autoDreamEnabled": true,
+  "theme": "dark",
+  "editorMode": "normal",
+  "verbose": false,
+  "preferredNotifChannel": "auto",
+  "fileCheckpointingEnabled": true,
+  "teammateMode": "auto",
+  "remoteControlAtStartup": false,
+  "isolatePeerMachines": true,
+  "crossSessionInbound": "hold",
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": false,
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Writing and editing files under the ndeko harness tree or the ndeko data tree is routine — this is the user's own AI infrastructure and every change is reversible through git.",
+      "Writing and editing files under ~/src/ is safe — these are the user's own project repositories.",
+      "Running bun, bunx, git, rg, ast-grep, fd, and standard read-only CLI tools is routine development work.",
+      "Compound commands chaining trusted tools (cd && bun, cd && git, cmd | rg) are standard patterns when each sub-command is individually trusted.",
+      "Spawning subagents for research, exploration, and review is standard workflow."
+    ],
+    "hard_deny": [
+      "$defaults",
+      "Reading, copying, or transmitting the contents of a credential store — SSH keys, cloud credentials, keychains, .env files, GPG keyrings — is never cleared by stated user intent. Discussing security as subject matter is fine; reading the secret is not.",
+      "Invoking `claude --bare`, or setting ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL for a spawned session, switches inference off the OAuth subscription onto metered API billing. This is never cleared by stated intent — it has already cost real money once.",
+      "Sending the contents of the ndeko data tree — identity, goals, memory — to any external destination, paste service, diagram renderer, or public repository is never cleared by stated intent."
+    ],
+    "environment": [
+      "$defaults",
+      "The ndeko harness tree is the user's own AI configuration: doctrine, hooks, skills, tools. It is a private git repo containing no personal data, so operations within it are routine and reversible.",
+      "The ndeko data tree (NDEKO_DATA_DIR) holds identity, goals, and memory. Reads are routine; it must never be transmitted anywhere.",
+      "~/src/ contains the user's project repositories. Build, test, and query commands there are routine development work.",
+      "Inference runs on an OAuth subscription, never a metered API key. Anything that changes the billing carrier is a security boundary, not a preference."
+    ]
+  },
+  "voiceEnabled": true
+}

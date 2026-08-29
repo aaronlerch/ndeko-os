@@ -1,0 +1,10 @@
+{
+  "name": "ndeko-harness",
+  "private": true,
+  "type": "module",
+  "description": "ndeko harness runtime. Deliberately dependency-free at runtime: hooks must be importable before `bun install` has ever run, because a hook that cannot load is a gate that silently does not fire. The only devDependency is type definitions.",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
