@@ -34,7 +34,10 @@ Parse `$ARGUMENTS` to extract:
 - Optional `--voice <profile>` — override the default voice
 - Optional `--model turbo|standard|multilingual|nano` — default `turbo`
   - `turbo` / `nano` — 2-step decoder, fast, and the only tiers that read cue tags
-  - `standard` / `multilingual` — 10-step decoder, slower and cleaner; take `--exaggeration` and `--cfg-weight`
+  - `standard` / `multilingual` — 10-step decoder, slower and cleaner; take `--exaggeration` and `--cfg-weight`, but cue tags get stripped
+- Optional `--device auto|cpu|mps|cuda` — `auto` picks mps on Apple Silicon
+- Optional `--temperature` / `--top-p` / `--repetition-penalty` — turbo/nano
+- Optional `--exaggeration` / `--cfg-weight` — standard/multilingual (`--cfg-weight 0.3` slows the pacing)
 - Optional `--seed N` — reproduce a take; reroll for a different reading
 - Optional `--candidates N` — render N seeded takes and pick one
 - Optional `--no-play` — save the WAV but don't auto-play
@@ -54,8 +57,18 @@ If the resolved voice profile doesn't exist (`chatterbox show --profile "$VOICE"
 OUT="${flag_out:-/tmp/say-$(date +%s).wav}"
 ${NDEKO_DIR}/tools/chatterbox/chatterbox tts \
   --profile "$VOICE" --model "${flag_model:-turbo}" \
-  --text "<text or @file>" --out "$OUT"
+  --text "<text or @file>" --out "$OUT" \
+  [--device ...] [--seed ...] [--candidates ...] \
+  [--temperature ...] [--top-p ...] [--repetition-penalty ...] \
+  [--exaggeration ...] [--cfg-weight ...] \
+  [--mtl-version v2|v3] [--language ...] \
+  [--chunk-size ...] [--chunk-silence ...] [--no-chunk]
 ```
+
+**Forward every flag the caller passed straight through.** This skill owns only
+voice resolution, the model default and playback; every other flag belongs to the
+CLI and must not be swallowed or re-interpreted here. `chatterbox tts --help` is
+the authority on what is accepted.
 
 ### Cue tags
 
@@ -86,7 +99,15 @@ One line: `🔊 spoken via <voice> (<model>) → <out path>`
 - `/say "Board meeting in five minutes." --voice narrator`
 - `/say @/tmp/note.txt --no-play --out ~/Downloads/note.wav`
 
+## Reference length
+
+`chatterbox list` shows each profile's reference duration. turbo conditions on up
+to 15s, so a profile sitting at 10s is running short — `chatterbox rebuild
+--profile <name>` re-cuts it from the stored sources, and `--seconds 30` goes
+further (the voice encoder reads the whole file even though the prompt caps at
+15s). Full detail in `/voice-clone`.
+
 ## Notes
 
 - First run after a fresh machine will trigger Chatterbox model download (~1-2GB, one-time).
-- For long text, expect a delay — Turbo on CPU is ~3x faster than standard but still not instant.
+- For long text, expect a delay. On mps turbo runs slightly faster than realtime; standard and multilingual are 1.5-2.4x slower than realtime.
