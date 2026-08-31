@@ -9,7 +9,7 @@ allowed-tools:
 
 # /voice-clone — Save a Chatterbox Voice Profile
 
-Stores a named voice profile backed by Resemble AI's Chatterbox TTS. Each profile is a normalized 15s reference clip plus metadata at `${NDEKO_DATA_DIR}/voice-profiles/<name>/`. Reuse it later via `/chatterbox-tts --profile <name>`.
+Stores a named voice profile backed by Resemble AI's Chatterbox TTS. Each profile is a normalized 45s reference clip plus metadata at `${NDEKO_DATA_DIR}/voice-profiles/<name>/`. Reuse it later via `/chatterbox-tts --profile <name>`.
 
 Arguments passed: `$ARGUMENTS`
 
@@ -24,7 +24,7 @@ The CLI copies each `--sample` file into `<profile-dir>/sources/` so the source 
 Parse `$ARGUMENTS` to extract:
 - **Profile name** — e.g. `aaron`, `my-voice`, `narrator`. Alphanumeric + dash/underscore, max 64 chars.
 - **One or more sample paths** — any format ffmpeg can read (mp3, m4a, wav, ogg, flac). **All samples are concatenated in the order given**, then the first `--seconds` are taken as the reference. Supply the cleanest, most representative speech first.
-- Optional `--seconds <n>` — reference length, default 15. See "How long should the reference be" below.
+- Optional `--seconds <n>` — reference length, default 45. It is a **ceiling**, not a requirement: a source with only 12s of audio clones fine and lands at 12s. See "How long should the reference be" below.
 - Optional `--force` to overwrite an existing profile with the same name.
 - Optional notes passed via `--notes "<text>"`.
 
@@ -56,17 +56,25 @@ The CLI prints the saved profile directory and the normalized reference duration
 
 ## How long should the reference be
 
-Default 15s, because that is the longest **conditioning prompt** any tier reads:
-`turbo`/`nano` slice 15s for the speech-cond prompt, `standard`/`multilingual`
-take 6s enc + 10s dec. Anything under 15s leaves turbo conditioning on less than
-it can use.
+**Default 45s. Longer is better, up to the point the audio stops being clean.**
 
-Longer still is not wasted. Every tier hands the **whole** reference file to the
-voice encoder and caps only the prompt slices, so the speaker embedding keeps
-changing with length — verified 2026-08-31, where 15s / 30s / 45s references
-produced three different renders from identical text and seed. Whether longer is
-*better* depends on the extra audio staying clean speech, so treat 30s as worth
-A/B-ing rather than an automatic win.
+15s is only where the *conditioning prompts* stop: `turbo`/`nano` slice 15s for
+the speech-cond prompt, `standard`/`multilingual` take 6s enc + 10s dec. Past
+that the audio still counts, because every tier hands the **whole** file to the
+voice encoder, which splits it into partial utterances and averages their
+embeddings. More clean speech means a more stable speaker embedding.
+
+Aaron A/B'd 15s vs 30s vs 45s on the same text and seed, 2026-08-31, and
+preferred them in that order — 45 > 30 > 15. That listening test is where the
+default comes from.
+
+The caveat is what "clean" is doing in that sentence. The gain assumes the extra
+audio is still the same speaker talking normally; long silences, music, a second
+voice, or a noisy tail will pull the average the wrong way. If a source degrades
+after the first minute, cut it with `--seconds`.
+
+Profiles are capped by what they have — `aaron` holds 15s of source, so it sits
+at 15s until longer audio is supplied.
 
 ## Rebuilding an existing profile
 
@@ -77,9 +85,11 @@ re-cut without hunting down the original audio:
 ${NDEKO_DIR}/tools/chatterbox/chatterbox rebuild --profile <name> [--seconds 30]
 ```
 
-This is the fix when `chatterbox list` shows a profile with a reference shorter
-than 15s — profiles cloned before 2026-08-31 were cut at 10s and conditioned on
-the first sample only.
+This is the fix when `chatterbox list` shows a profile shorter than its available
+source — profiles cloned before 2026-08-31 were cut at 10s and conditioned on the
+first sample only. `chatterbox tts` prints a note when re-cutting would actually
+gain something, and stays quiet when a profile is already using every second it
+has.
 
 ## Other operations via the same CLI
 
@@ -92,7 +102,8 @@ the first sample only.
 - `/voice-clone <profile-name> ~/Downloads/sample.mp3`
 - `/voice-clone narrator ~/Recordings/clip.m4a --notes "warm, conversational"`
 - `/voice-clone my-voice ~/sample.wav --force` (overwrite existing)
-- `/voice-clone narrator ~/take1.wav ~/take2.wav --seconds 30` (concatenated, 30s reference)
+- `/voice-clone narrator ~/take1.wav ~/take2.wav` (concatenated, up to the 45s default)
+- `/voice-clone narrator ~/long-interview.wav --seconds 20` (cap it short — the tail is noisy)
 
 ## Prerequisites
 

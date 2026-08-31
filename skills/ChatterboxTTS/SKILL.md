@@ -96,7 +96,7 @@ There is no phoneme, IPA, lexicon, or G2P input anywhere in chatterbox. Homograp
   Non-zero exit means the profile is missing — suggest `/voice-clone` to create one.
 - If `--out` was omitted, compute a default using `date +%Y%m%d-%H%M%S` and place it in `~/Downloads/`.
 - Long text (> ~1500 chars) will be slow — warn the user and confirm before proceeding. On mps, turbo runs a little faster than realtime and `standard`/`multilingual` around 1.5-2.4x slower than realtime (measured 2026-08-31, M-series).
-- Check the reference length: `chatterbox show --profile <name>` reports `reference_duration_sec`. **turbo conditions on up to 15s**; if the profile is shorter and has stored sources, `chatterbox rebuild --profile <name>` widens it. The CLI prints a note when this applies.
+- Check the reference length: `chatterbox show --profile <name>` reports `reference_duration_sec`. profiles default to a 45s reference; if one is shorter than the source it stores, `chatterbox rebuild --profile <name>` widens it. The CLI prints a note when this applies.
 
 ### 2. Invoke the CLI
 
@@ -172,20 +172,23 @@ from inline cue tags and the sampling knobs instead.
 
 ### Reference length
 
-`turbo`/`nano` slice **15s** of the reference for the speech-cond prompt;
-`standard`/`multilingual` take 6s enc + 10s dec. Profiles default to a 15s
-reference for that reason.
+**Profiles default to a 45s reference.** `turbo`/`nano` slice 15s of it for the
+speech-cond prompt and `standard`/`multilingual` take 6s enc + 10s dec, but the
+rest is not wasted: every tier passes the **whole** file to the voice encoder,
+which splits it into partial utterances and averages their embeddings.
 
-Past 15s is not wasted: every tier passes the **whole** reference file to the
-voice encoder and only the prompt slices are capped, so a longer clip keeps
-moving the speaker embedding. Verified 2026-08-31 — same text, same seed, 15s vs
-30s vs 45s references produced three different renders. Whether longer sounds
-*better* depends on the source audio staying clean, so A/B it rather than
-assuming:
+Aaron A/B'd 15s vs 30s vs 45s on identical text and seed, 2026-08-31, and
+preferred 45 > 30 > 15. Longer helps as long as the extra audio stays clean
+speech — silences, music, or a second voice pull the average the wrong way.
+
+A profile is capped by the source it holds. To re-cut:
 
 ```bash
-chatterbox rebuild --profile <name> --seconds 30
+chatterbox rebuild --profile <name> [--seconds 45]
 ```
+
+`chatterbox tts` prints a note when a profile is shorter than the source audio it
+has stored, and stays quiet otherwise.
 
 ## Prerequisites
 

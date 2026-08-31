@@ -51,19 +51,23 @@ def _data_root() -> Path:
 
 PROFILE_ROOT = _data_root() / "voice-profiles"
 
-# 15s, because that is the longest *conditioning prompt* any model reads:
-# turbo/nano slice ENC_COND_LEN = 15s for the speech-cond prompt, while
-# standard/multilingual take 6s enc + 10s dec and truncate the rest. A longer
-# reference is therefore free for the small models and strictly better for the
-# big one. (Was 10s, which starved turbo of a third of its conditioning.)
+# A CEILING, not a requirement — ffmpeg just takes what the sources have, so a
+# profile with 12s of audio still clones fine and simply lands at 12s.
 #
-# Above 15s is not wasted either, and this is the non-obvious part: every tier
-# computes `ref_16k_wav` from the WHOLE file and hands all of it to
-# `ve.embeds_from_wavs`, so the speaker embedding keeps improving with length
-# even though the prompt slices do not. That is what --seconds is for; 30-60s
-# of clean speech is worth A/B-ing when a profile has the material.
+# 15s is where the *conditioning prompts* stop: turbo/nano slice
+# ENC_COND_LEN = 15s for the speech-cond prompt, standard/multilingual take 6s
+# enc + 10s dec. Everything past that still counts, which is the non-obvious
+# part: every tier builds `ref_16k_wav` from the WHOLE file and hands all of it
+# to `ve.embeds_from_wavs`, which splits it into partial utterances and averages
+# their embeddings. More clean speech therefore means a more stable speaker
+# embedding, and the gain does not stop at the prompt cap.
+#
+# 45s because that is what a blind-ish A/B preferred: 45 > 30 > 15 on the same
+# text and seed, Aaron listening, 2026-08-31. Not a universal law — it assumes
+# the extra audio stays clean speech. Drop --seconds if a source gets noisy or
+# has long silences past the first minute.
 # The floor is a hard model assert: prepare_conditionals refuses <= 5s.
-REFERENCE_SECONDS = 15
+REFERENCE_SECONDS = 45
 REFERENCE_MIN_SECONDS = 5.5
 REFERENCE_SAMPLE_RATE = 24000
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -370,11 +374,24 @@ def cmd_tts(args):
     profile = json.loads(profile_json.read_text()) if profile_json.is_file() else {}
     defaults = profile.get("defaults", {}) or {}
 
+    # Only nudge when re-cutting would actually gain something: the profile is
+    # short AND its stored sources are longer than what it was cut to. Comparing
+    # against REFERENCE_SECONDS alone nags forever about profiles that are
+    # already using every second of audio they have.
     ref_len = probe_duration(reference_wav)
-    if ref_len is not None and ref_len < REFERENCE_SECONDS - 0.5 and args.model in CUE_MODELS:
-        print(f"note: reference is {ref_len}s but {args.model} conditions on up to "
-              f"{REFERENCE_SECONDS}s — run 'chatterbox rebuild --profile {args.profile}' "
-              f"to widen it if longer source audio is stored.", file=sys.stderr)
+    target = profile.get("reference_seconds_target") or REFERENCE_SECONDS
+    if ref_len is not None and ref_len + 0.5 < min(target, REFERENCE_SECONDS):
+        sources_dir = pdir / "sources"
+        available = 0.0
+        if sources_dir.is_dir():
+            for f in sources_dir.iterdir():
+                if f.is_file():
+                    available += probe_duration(f) or 0.0
+        if available > ref_len + 1.0:
+            print(f"note: reference is {ref_len}s but {available:.0f}s of source is stored — "
+                  f"'chatterbox rebuild --profile {args.profile}' re-cuts it. Longer references "
+                  f"keep improving the speaker embedding well past the {15}s prompt cap.",
+                  file=sys.stderr)
 
     text = read_text_arg(args.text).strip()
     if not text:

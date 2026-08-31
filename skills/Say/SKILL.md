@@ -101,11 +101,11 @@ One line: `🔊 spoken via <voice> (<model>) → <out path>`
 
 ## Reference length
 
-`chatterbox list` shows each profile's reference duration. turbo conditions on up
-to 15s, so a profile sitting at 10s is running short — `chatterbox rebuild
---profile <name>` re-cuts it from the stored sources, and `--seconds 30` goes
-further (the voice encoder reads the whole file even though the prompt caps at
-15s). Full detail in `/voice-clone`.
+`chatterbox list` shows each profile's reference duration. The default is 45s —
+the prompt slices cap at 15s but the voice encoder reads the whole file, and 45
+beat 30 beat 15 in a listening test (2026-08-31). A profile shorter than the
+source it stores can be re-cut with `chatterbox rebuild --profile <name>`; the
+CLI says so when it would help. Full detail in `/voice-clone`.
 
 ## Notes
 
