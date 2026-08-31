@@ -32,7 +32,11 @@ The value must be a profile that exists in `${NDEKO_DATA_DIR}/voice-profiles/`. 
 Parse `$ARGUMENTS` to extract:
 - **Text** — the phrase to speak. Everything that isn't a flag. Wrap in quotes if it has spaces. `@/path/to/file.txt` also works.
 - Optional `--voice <profile>` — override the default voice
-- Optional `--model standard|turbo` — default `turbo` (faster + supports `[chuckle]` `[sigh]` tags)
+- Optional `--model turbo|standard|multilingual|nano` — default `turbo`
+  - `turbo` / `nano` — 2-step decoder, fast, and the only tiers that read cue tags
+  - `standard` / `multilingual` — 10-step decoder, slower and cleaner; take `--exaggeration` and `--cfg-weight`
+- Optional `--seed N` — reproduce a take; reroll for a different reading
+- Optional `--candidates N` — render N seeded takes and pick one
 - Optional `--no-play` — save the WAV but don't auto-play
 - Optional `--out <path>` — defaults to `/tmp/say-<ts>.wav`
 
@@ -52,6 +56,18 @@ ${NDEKO_DIR}/tools/chatterbox/chatterbox tts \
   --profile "$VOICE" --model "${flag_model:-turbo}" \
   --text "<text or @file>" --out "$OUT"
 ```
+
+### Cue tags
+
+`chatterbox tags` prints the current list. On **turbo and nano only**, these are
+real vocabulary tokens: `[advertisement]` `[angry]` `[chuckle]` `[clear throat]`
+`[cough]` `[crying]` `[dramatic]` `[fear]` `[gasp]` `[groan]` `[happy]`
+`[laugh]` `[narration]` `[sarcastic]` `[shush]` `[sigh]` `[sniff]`
+`[surprised]` `[whispering]`. On `standard` and `multilingual` the CLI strips
+them with a warning, because those tokenisers would read them out loud.
+
+`[pause]` and `[pause:1.5]` are not model tokens — the CLI implements them by
+splitting the text and inserting real silence, so they work on every model.
 
 ### 3. Play (unless --no-play)
 
