@@ -485,3 +485,128 @@ describe("transcript-evidence: testResultPassed", () => {
     expect(testResultPassed(out)).toBe(false);
   });
 });
+
+/**
+ * EnvFileGate, added 2026-09-04. The gate replaced a blanket dotenv-wildcard deny
+ * that also blocked `.env.example`; settings.json cannot express that exception,
+ * so the allowing half of the decision moved here. Both directions are pinned,
+ * because a gate that only ever passes is indistinguishable from one that is not
+ * wired up.
+ */
+describe("EnvFileGate", () => {
+  const gate = () => import("./EnvFileGate.hook.ts");
+  const notIgnored = () => false;
+  const ignored = () => true;
+  const noRepo = () => null;
+
+  test.each([".env.example", ".env.sample", ".env.template", ".env.production.example"])(
+    "allows %s when git does not ignore it",
+    async (name) => {
+      const { judge } = await gate();
+      expect(judge(`/repo/${name}`, notIgnored).allowed).toBe(true);
+    },
+  );
+
+  test.each([".env", ".env.local", ".env.keys", ".env.backup", ".env.myapp-creds"])(
+    "blocks %s on the name alone",
+    async (name) => {
+      const { judge } = await gate();
+      expect(judge(`/repo/${name}`, notIgnored).allowed).toBe(false);
+    },
+  );
+
+  test("blocks a template name that git ignores", async () => {
+    const { judge } = await gate();
+    expect(judge("/repo/.env.example", ignored).allowed).toBe(false);
+  });
+
+  test("allows a template name outside a git repo", async () => {
+    const { judge } = await gate();
+    expect(judge("/tmp/.env.example", noRepo).allowed).toBe(true);
+  });
+
+  test("ignores paths outside the dotenv family", async () => {
+    const { judge } = await gate();
+    expect(judge("/repo/environment.ts", ignored).allowed).toBe(true);
+    expect(judge("/repo/.environment", ignored).allowed).toBe(true);
+  });
+
+  test("finds dotenv paths in shell commands", async () => {
+    const { envPathsInCommand } = await gate();
+    expect(envPathsInCommand("cat .env.local")).toEqual([".env.local"]);
+    expect(envPathsInCommand("cp .env.example .env")).toEqual([".env.example", ".env"]);
+    expect(envPathsInCommand("sed -i '' s/a/b/ ./cfg/.env.keys")).toEqual(["./cfg/.env.keys"]);
+    expect(envPathsInCommand("rg TODO src/")).toEqual([]);
+  });
+
+  test("does not read heredoc bodies as arguments", async () => {
+    const { envPathsInCommand } = await gate();
+    const cmd = "cat >> notes.md <<'EOF'\nwe used to deny .env.local everywhere\nEOF";
+    expect(envPathsInCommand(cmd)).toEqual([]);
+  });
+
+  /**
+   * Unlike CatastrophicGuard, this gate strips executed heredocs too: a file read
+   * performed inside the interpreter is a subprocess opening the file itself,
+   * which no permission rule reaches. Scanning it only fires on prose.
+   */
+  test("strips executed heredoc bodies as well", async () => {
+    const { envPathsInCommand } = await gate();
+    const cmd = "python3 - <<'PY'\ns = 'the old rule denied .env.local'\nPY";
+    expect(envPathsInCommand(cmd)).toEqual([]);
+  });
+
+  test("does not read commit-message bodies as arguments", async () => {
+    const { envPathsInCommand } = await gate();
+    const cmd = 'git commit -m "stop blocking .env.example, keep .env.local shut"';
+    expect(envPathsInCommand(cmd)).toEqual([]);
+  });
+
+  test("strips trailing punctuation without weakening detection", async () => {
+    const { envPathsInCommand } = await gate();
+    expect(envPathsInCommand("check .env.example, then stop")).toEqual([".env.example"]);
+    expect(envPathsInCommand("check .env.local, then stop")).toEqual([".env.local"]);
+  });
+
+  test("blocks a Read of a gitignored dotenv file end to end", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "envgate-"));
+    Bun.spawnSync(["git", "init", "-q", dir]);
+    writeFileSync(join(dir, ".gitignore"), ".env*\n!.env.example\n");
+    writeFileSync(join(dir, ".env.example"), "API_KEY=\n");
+    writeFileSync(join(dir, ".env.local"), "API_KEY=real\n");
+
+    const denied = await runHook(
+      "EnvFileGate.hook.ts",
+      base("PreToolUse", {
+        tool_name: "Read",
+        tool_input: { file_path: join(dir, ".env.local") },
+        cwd: dir,
+      }),
+    );
+    expect(denied.code).toBe(2);
+    expect(denied.stderr).toContain("EnvFileGate");
+
+    const allowed = await runHook(
+      "EnvFileGate.hook.ts",
+      base("PreToolUse", {
+        tool_name: "Read",
+        tool_input: { file_path: join(dir, ".env.example") },
+        cwd: dir,
+      }),
+    );
+    expect(allowed.code).toBe(0);
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("exits 0 on garbage stdin", async () => {
+    const proc = Bun.spawn(["bun", join(HOOKS, "EnvFileGate.hook.ts")], {
+      stdin: new TextEncoder().encode("not json at all"),
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, NDEKO_DATA_DIR: TMP },
+    });
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+  });
+});
