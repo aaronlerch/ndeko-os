@@ -6,25 +6,48 @@
 - If interceptor commands fail unexpectedly
 - Periodic capability check
 
+## Remote layout — read this before any git command here
+
+The remotes are **inverted from the usual convention**, and getting it backwards
+is destructive:
+
+| Remote | Points at | Holds |
+|---|---|---|
+| `origin` | `aaronlerch/Interceptor` (our fork) | `origin/my-install` — our real work. `origin/main` is frozen at the 2026-06 fork point. |
+| `upstream` | `Hacker-Valley-Media/Interceptor` | upstream releases. Push is `DISABLED`. |
+
+Working branch is **`my-install`**. There is no `valid/main` branch — the name
+appears in `docs/FORK-DELTA.md` as a label for this line of work, not as a ref.
+
+**Never `git reset --hard origin/main`.** That resets to the fork point and
+destroys all eight fork deltas. If a working tree needs cleaning, reset to
+`origin/my-install`.
+
 ## Steps
 
-### 1. Pull Latest
+### 1. Fetch upstream
 
 ```bash
-cd ~/src/valid/Interceptor && git fetch origin && git status -uno
+cd ~/src/valid/interceptor && git fetch upstream && git status -uno
+git log --oneline my-install..upstream/main        # what's new upstream
 ```
 
-If upstream force-pushed (common with this repo), `git pull` will refuse. Check
-for local modifications first (`git status`), preserve any patches by hand, then:
+A merge is a **reviewed** operation, not a fast-forward. Before merging, work
+through the merge checklist at the bottom of `docs/FORK-DELTA.md` — in particular
+reviewing the `.agents/skills/**` and `.agents/rules/**` diffs, which are agent
+instructions rather than docs, and re-scanning `extension/dist-mv2/*.js` for new
+remote hosts. After merging, confirm every fork-delta guard still holds:
 
 ```bash
-cd ~/src/valid/Interceptor && git reset --hard origin/main
+bun run typecheck && bun test
+bash scripts/audit-capability-blind.sh
+git grep -n 'runSudo\|macos_sudo\|authdialog\|BunSecretsVault\|secrets.json'   # must be empty
 ```
 
 ### 2. Install New Dependencies
 
 ```bash
-cd ~/src/valid/Interceptor && bun install
+cd ~/src/valid/interceptor && bun install
 ```
 
 Always run before build — upstream may add deps (e.g. `ocrad.js` for canvas OCR
@@ -33,7 +56,7 @@ arrived in v0.8.0). Build will fail with "Could not resolve" otherwise.
 ### 3. Build
 
 ```bash
-cd ~/src/valid/Interceptor && bash scripts/build.sh
+cd ~/src/valid/interceptor && bash scripts/build.sh
 ```
 
 Produces:
@@ -42,17 +65,29 @@ Produces:
 - `extension/dist/` — Chrome extension (manifest reflects upstream version)
 - `dist/interceptor-bridge` — Swift binary for OS-level input simulation (macOS only, optional)
 
-### 4. Install Binaries
+### 4. Install Binaries — nothing to do
+
+**There is no copy step.** This install runs the build products in place:
+
+- `~/.local/bin/interceptor` is a **symlink** to `~/src/valid/interceptor/dist/interceptor`,
+  so the new CLI is live the moment `build.sh` finishes.
+- `interceptor-daemon` is never installed to a PATH directory. Chrome launches it
+  from the repo via the native-messaging manifest, which hardcodes the repo path.
+
+Do **not** `cp` either binary into `/opt/homebrew/bin` — that creates a stale
+duplicate that shadows the symlink and silently pins you to an old build.
+
+Verify the running CLI is the one you just built:
 
 ```bash
-cp ~/src/valid/Interceptor/dist/interceptor /opt/homebrew/bin/
-cp ~/src/valid/Interceptor/daemon/interceptor-daemon /opt/homebrew/bin/
+ls -l ~/.local/bin/interceptor          # → …/src/valid/interceptor/dist/interceptor
+interceptor --version --no-skills-hint
 ```
 
 ### 5. Re-register Native Messaging
 
 ```bash
-cd ~/src/valid/Interceptor && bash scripts/install.sh --browser-only --chrome --skip-extension
+cd ~/src/valid/interceptor && bash scripts/install.sh --browser-only --chrome --skip-extension
 ```
 
 **`--browser-only` is mandatory if you don't want the bridge.** On macOS,
@@ -93,7 +128,7 @@ target uid 0 instead of the user. Three commands handle it correctly:
 
 ```bash
 # 1. Binary into /usr/local/bin (needs sudo — root:wheel 755)
-sudo cp ~/src/valid/Interceptor/dist/interceptor-bridge /usr/local/bin/interceptor-bridge
+sudo cp ~/src/valid/interceptor/dist/interceptor-bridge /usr/local/bin/interceptor-bridge
 sudo chmod +x /usr/local/bin/interceptor-bridge
 
 # 2. Write LaunchAgent plist into $HOME (no sudo)
@@ -158,7 +193,7 @@ Honest disclosure, not reassurance:
   hook in the plist. the principal's Mac is single-user; not addressed here.
 - **Binary provenance:** built locally from the Hacker-Valley-Media/Interceptor source we just
   pulled. Not a downloaded prebuilt — provenance is the Swift source under
-  `~/src/valid/Interceptor/interceptor-bridge/Sources/`.
+  `~/src/valid/interceptor/interceptor-bridge/Sources/`.
 
 #### 6d. Troubleshoot
 
@@ -190,7 +225,7 @@ If `extension/dist/manifest.json` changed (especially `version` or `key`):
 1. Open `chrome://extensions`, enable Developer Mode
 2. **Delete** the existing Interceptor card (don't just hit reload — if the
    manifest `key` changed, the extension ID changed and the old card is dead)
-3. **Load unpacked** → `~/src/valid/Interceptor/extension/dist`
+3. **Load unpacked** → `~/src/valid/interceptor/extension/dist`
 4. Quit Chrome fully (⌘Q, not just close window) and relaunch — service worker
    needs a clean restart, especially with `userScripts` permission added
 5. Accept any new permission prompts (e.g. `userScripts`)

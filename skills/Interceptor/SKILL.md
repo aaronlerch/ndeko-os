@@ -1,15 +1,18 @@
 ---
 name: Interceptor
 description: "Real Chrome browser automation via Interceptor extension — controls the actual browser from inside (zero CDP fingerprint, passes all major bot detection checks including BrowserScan, Pixelscan, CreepJS, Fingerprint.com). Stays logged in, uses your real sessions. Compound commands (open, read, act, inspect) collapse multi-step flows into single calls. Unique capabilities: monitor/replay system (record user actions → export replayable plan scripts for regression), network log (auto-captures all fetch/XHR), scene graph for rich editors (Google Docs, Canva, Slides). Workflows: VerifyDeploy, Reproduce (open affected page BEFORE code analysis — mandatory per rules), RecordFlow, ReplayFlow, TestForm, Update. MANDATORY for all visual verification — never use agent-browser for deploy confirmation. USE WHEN verify deploy, confirm UI, check page, screenshot verification, interceptor, debug web, troubleshoot, visual check, authenticated page, bot detection bypass, agent-browser failing, reproduce bug, record flow, replay flow, test form, QA test, regression check. NOT FOR scraping at scale from rotating residential or geo-specific IPs — this harness has no proxy path, so say that out loud rather than substituting a weaker probe. (Batch IS supported: see `interceptor batch`.)"
-version: 2.0.0
+version: 2.1.0
 effort: medium
 ---
 
 # Interceptor — Stealth Browser Automation
 
 **Tool:** `interceptor` CLI — Chrome extension that controls the real browser from the inside.
-**Repo:** https://github.com/Hacker-Valley-Media/Interceptor
-**Install:** `~/src/valid/Interceptor` — our audited fork on branch `valid/main`, built from source (see `Workflows/Update.md`)
+**Upstream:** https://github.com/Hacker-Valley-Media/Interceptor
+**Install:** `~/src/valid/interceptor`, branch **`my-install`**, built from source (see `Workflows/Update.md`).
+Git remotes here are **inverted from the usual convention**: `origin` is *our fork*
+(`aaronlerch/Interceptor`), `upstream` is Hacker-Valley-Media. `origin/main` still sits at the
+2026-06 fork point, so `git reset --hard origin/main` destroys every fork delta below.
 
 ### Why Interceptor?
 
@@ -18,7 +21,8 @@ agent-browser uses CDP — sites can detect it, and it is not installed here in 
 ### Fork Deltas — we do NOT run upstream
 
 We track `Hacker-Valley-Media/Interceptor` but merge deliberately after review.
-Three behavioral differences matter when driving the CLI:
+Eight deltas, numbered to match `docs/FORK-DELTA.md`. All of them change what the
+CLI will do for you, so a command that works upstream can fail here by design.
 
 1. **No iOS surface.** `interceptor ios …` does not exist here; the whole device
    subsystem was removed, along with a root LaunchDaemon whose control socket was
@@ -27,16 +31,36 @@ Three behavioral differences matter when driving the CLI:
    strips a page's CSP header automatically; we refuse unless asked.
 3. **Extension Fabric fails closed.** Bridge extension dylibs won't load without
    an operator Team-ID allowlist in `~/.interceptor/extension-trust.json`.
+4. **Content scripts are dormant until attached.** Local feature, not upstream —
+   the four `<all_urls>` scripts activate only while a tab is being driven, so
+   heavy React/chart pages don't freeze while Interceptor is idle.
+5. **`interceptor macos sudo` is removed.** It ran an arbitrary command as root
+   with a vault password on stdin, and needed no bridge to do it. The verb does
+   not parse. There is no replacement — this is a deliberate capability cut.
+6. **`interceptor macos authdialog` is removed.** Same escalation class: it filled
+   the macOS admin prompt from the vault, `--submit` pressing confirm. Gone.
+7. **The vault is 1Password.** All of `macos secret register|set|list|rm|unlock|
+   lock|reveal` are gone; only `macos secret status` remains. `--secret` now takes
+   a **1Password reference**, not a name — see "Credentials" below.
+8. **`net log` exports redact credential headers by default.** `--redact-auth` was
+   upstream's opt-in; here it's the default and `--no-redact-auth` is the opt-out.
 
-Full record: `~/src/valid/Interceptor/docs/FORK-DELTA.md`. Re-read it after any
+Full record: `~/src/valid/interceptor/docs/FORK-DELTA.md`. Re-read it after any
 upstream merge — merging is the moment these can silently revert.
 
 ### Prerequisites
 
 - Chrome, Brave, **or Safari** running with the Interceptor extension loaded
-- `interceptor` CLI in PATH (`/opt/homebrew/bin/interceptor`)
-- `interceptor-daemon` in PATH (`/opt/homebrew/bin/interceptor-daemon`)
-- Native messaging manifest registered (`bash ~/src/valid/Interceptor/scripts/install.sh --browser-only --chrome --skip-extension` — `--browser-only` keeps the bridge out; the macOS default `full` mode installs it)
+- `interceptor` CLI in PATH — `~/.local/bin/interceptor`, a **symlink** into
+  `~/src/valid/interceptor/dist/interceptor`. Nothing is copied to
+  `/opt/homebrew/bin`; a rebuild is live the moment it lands in `dist/`.
+- `interceptor-daemon` is **not on PATH and is not supposed to be.** Chrome launches
+  it in place from the repo via the native-messaging manifest
+  (`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.interceptor.host.json`,
+  which hardcodes the repo path). `which interceptor-daemon` returning nothing is
+  the healthy state — check `pgrep -fl interceptor-daemon` instead. **Moving or
+  renaming the repo breaks the browser leg** until step 5 of Update.md re-runs.
+- Native messaging manifest registered (`bash ~/src/valid/interceptor/scripts/install.sh --browser-only --chrome --skip-extension` — `--browser-only` keeps the bridge out; the macOS default `full` mode installs it)
 - (Optional, macOS) `interceptor-bridge` helper app — see "Bridge" section below
 
 ### Bridge — macOS Native Helper App
@@ -72,7 +96,7 @@ The skill's procedure is the canonical one.
 - Single-user Mac threat model: acceptable, since anything running as you can
   already do this with effort. Multi-user Macs need socket hardening (see
   Update.md section 6c).
-- Binary built locally from `~/src/valid/Interceptor/interceptor-bridge/Sources/`,
+- Binary built locally from `~/src/valid/interceptor/interceptor-bridge/Sources/`,
   not a downloaded prebuilt. Provenance is Swift source we just compiled.
 
 ---
@@ -157,11 +181,50 @@ interceptor cookies set <json>
 interceptor cookies delete <url> <name>
 ```
 
+## Credentials — 1Password references (fork delta §7)
+
+Never put a password in a literal `type` call, never ask Aaron to paste one into
+chat, and never read one into your own context. Type it by **reference**: the value
+is resolved inside the daemon and never enters the CLI process, the transcript, or
+the monitor recording (which logs `***SECURE***`).
+
+```bash
+interceptor type <ref> --secret op://<vault>/<item>/<field>     # browser field
+interceptor macos type [<ref>] --secret op://<vault>/<item>/<field> --op-any-target [--app X]
+interceptor macos secret status                                 # op binary + signed-in accounts
+```
+
+- **`--secret` takes `op://<vault>/<item>/<field>` — a reference, never a name.**
+  A bare name is an upstream-era form and is rejected. Vault and item may each be
+  a name or a UUID. Section-qualified refs (`op://v/i/section/field`) are rejected.
+  In 1Password: right-click the field → **Copy Secret Reference**.
+- **The allowlist is the 1Password item's own website URLs.** The daemon derives the
+  tab's real host and matches it host-or-subdomain **before** `op read` runs, so a
+  wrong destination never causes a read. An item with no URLs fails closed — fix it
+  by adding the site to the item, not by reaching for the override.
+- **`--op-any-target` bypasses that check and is required for `macos type`** — an
+  item URL cannot describe a native app. On a browser field, needing it means the
+  item is missing the site; prefer fixing the item.
+- **`--op-account <shorthand>` is required when more than one 1Password account is
+  signed in** (or `INTERCEPTOR_OP_ACCOUNT`). Without it the daemon refuses rather
+  than letting `op` silently pick one.
+- **The gate is 1Password's own** — Touch ID, unlock timeout, lock-on-sleep. No
+  bridge needed. `OP_SERVICE_ACCOUNT_TOKEN` is deliberately unsupported: it bypasses
+  biometrics and recreates the unattended-credential-store the fork removed.
+- **A 12s stall means an authorization prompt, not a browser problem.** Every `op`
+  call carries a deadline (`INTERCEPTOR_OP_TIMEOUT_MS`). If it fires, bring 1Password
+  to the front and approve — do not go debugging the extension leg.
+
+`interceptor help type` still prints a stale upstream line offering `--secret <name>`
+("a vault secret by name"). That store does not exist here. Ignore the line.
+
 ## Network
 
 ```bash
 # Passive capture (always-on, no CDP fingerprint)
 interceptor net log [--filter <pat>] [--limit N] [--since <ts>]
+interceptor net log --format har --out <path>          # Authorization headers REDACTED (fork default)
+interceptor net log --format har --out <path> --no-redact-auth   # keeps credential headers — opt in deliberately
 interceptor net headers [--filter <pat>]   # CSRF, auth headers
 interceptor net clear
 
@@ -305,6 +368,7 @@ Agent(subagent_type="general-purpose", prompt="
 
 ## Gotchas
 
+- **Every command prepends a skill-pack hint to stdout.** `hint: Interceptor skill packs are not fully linked into your AI runtimes … Run 'interceptor skills adopt'` rides along on every invocation. It is expected — upstream ships four `.agents/skills/interceptor-*` packs and we deliberately run **this** skill instead, so `0/4 linked` is the intended state, not a broken install. **Do not run `interceptor skills adopt`**: it writes upstream-authored instructions into `~/.claude/skills/`, and those still tell agents to use `macos secret register`, `authdialog fill`, and `interceptor macos sudo` — all removed here (fork deltas §5–§7). Pass `--no-skills-hint` when parsing output. *(2026-09-06)*
 - **Screenshot ignores scroll position.** `interceptor screenshot` (with or without `--full`) captures from y=0 of the document — it does not honor `window.scrollTo`, `scrollIntoView`, `scroll bottom`, or `keys End`. For tall pages, content below the fold is unreachable through screenshot. Workaround: render the section of interest at its own short URL (`/problems.html`, `/section-3.html`) and screenshot that page directly. The `--clip "x,y,w,h"` flag returns "Cannot read properties of undefined" — broken in the current build. *(2026-04-27)*
 - **`--clip` is broken but `--region` and `--selector` are NOT — reach for those instead.** `interceptor help screenshot` lists `--clip` as a deprecated alias for `--region`; the alias is what's broken, the real flag works. `--region X,Y,W,H` crops any band of a tall page (coordinates are full-page document pixels — the same space `--full` captures in), and `--selector "figure.foo"` / `--element N` capture one element directly, off-screen ones included. `--scale 2` gets retina detail for inspecting type and 1px strokes. Don't fall back to re-rendering sections at separate URLs — that workaround predates these flags. *(2026-08-06)*
 - **An element screenshot composites without the page background.** `--selector` returns the element over a transparent/white backdrop, so a dark-theme capture shows correct element fills against a *light* surround — and any `paint-order` knockout or background-colored halo renders as a visible dark blob that does not exist on the real page. Judge theme correctness from `--region` (which includes `body`), never from `--selector`. *(2026-08-06)*
