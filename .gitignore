@@ -47,6 +47,7 @@ policy-limits.json
 stats-cache.json
 settings.local.json
 mcp-needs-auth-cache.json
+gh-pr-status-cache.json
 .last-cleanup
 
 # ─── Per-session runtime. Same class as teams/ above, found the same way.
