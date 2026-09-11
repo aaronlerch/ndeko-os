@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Entry point for the global demo-video install. Put this on your PATH:
+#   ln -s "$HOME/.claude/tools/demo-video/demo-video" ~/.local/bin/demo-video
+set -euo pipefail
+
+# Resolve through symlinks — this is normally reached as ~/.local/bin/demo-video,
+# where BASH_SOURCE is the LINK and its dirname holds no .ts files at all.
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+	LINKDIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+	SOURCE="$(readlink "$SOURCE")"
+	case "$SOURCE" in /*) ;; *) SOURCE="$LINKDIR/$SOURCE" ;; esac
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+case "${1:-}" in
+record) shift; exec bun "$DIR/run.ts" "$@" ;;
+voice)  shift; exec bun "$DIR/voice.ts" "$@" ;;
+login)  shift; exec bun "$DIR/login.ts" "$@" ;;
+doctor) shift; exec bun "$DIR/doctor.ts" "$@" ;;
+deps)   shift; exec bash "$DIR/install-deps.sh" "$@" ;;
+*)
+	cat <<'USAGE'
+demo-video — record a narrated demo of any website
+
+  demo-video record <storyboard>   render a storyboard to mp4
+  demo-video voice                 set up the narration voice (do this first)
+  demo-video login <name>          save a session for a site behind a sign-in
+  demo-video doctor                report what is ready and what is not
+  demo-video deps                  install ffmpeg + Chromium
+
+Storyboards live in ${XDG_CONFIG_HOME:-~/.config}/demo-video/storyboards/.
+USAGE
+	exit 1
+	;;
+esac
