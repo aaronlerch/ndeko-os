@@ -49,6 +49,7 @@ export interface Product {
     login: string;
     deps: string;
     doctor: string;
+    glossary: string;
     /** `null` where this install has nowhere to publish to. */
     publish: string | null;
   };

@@ -18,6 +18,7 @@ record) shift; exec bun "$DIR/run.ts" "$@" ;;
 voice)  shift; exec bun "$DIR/voice.ts" "$@" ;;
 login)  shift; exec bun "$DIR/login.ts" "$@" ;;
 doctor) shift; exec bun "$DIR/doctor.ts" "$@" ;;
+glossary) shift; exec bun "$DIR/glossary.ts" "$@" ;;
 deps)   shift; exec bash "$DIR/install-deps.sh" "$@" ;;
 *)
 	cat <<'USAGE'
@@ -27,6 +28,7 @@ demo-video — record a narrated demo of any website
   demo-video voice                 set up the narration voice (do this first)
   demo-video login <name>          save a session for a site behind a sign-in
   demo-video doctor                report what is ready and what is not
+  demo-video glossary              teach it how to say a word
   demo-video deps                  install ffmpeg + Chromium
 
 Storyboards live in ${XDG_CONFIG_HOME:-~/.config}/demo-video/storyboards/.

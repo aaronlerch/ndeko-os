@@ -142,6 +142,16 @@ export interface Storyboard {
   viewport?: { width: number; height: number };
   /** Named voice profile from the local voice config. See lib/voice.ts. */
   voice?: string;
+  /**
+   * Pronunciation contexts this demo is in, matched against the machine's
+   * glossary (`lib/glossary.ts`).
+   *
+   * Hosts are derived from `baseUrl` and any absolute `goto` automatically, so
+   * this is for the scopes a URL cannot express — a subject matter rather than
+   * a site. "Todo" is *too-DOO* on linear.app by host; it is *TOE-doe* in a
+   * demo tagged `hobbit-names`, wherever that demo is pointed.
+   */
+  context?: string[];
   /** Seconds of silence held after each narration clip. */
   pad?: number;
   /** Draw a synthetic pointer. On by default. */
@@ -263,4 +273,17 @@ export async function loadStoryboard(path: string): Promise<Storyboard> {
 /** Every segment across every take, in recording order. */
 export function allSegments(sb: Storyboard): Segment[] {
   return sb.takes.flatMap((t) => t.segments);
+}
+
+/**
+ * Every `goto` destination in the storyboard.
+ *
+ * Used to work out which hosts a walk actually visits, so a host-scoped
+ * pronunciation applies to a demo that crosses onto that site partway through
+ * rather than only to one whose `baseUrl` happens to point at it.
+ */
+export function allGotos(sb: Storyboard): string[] {
+  return allSegments(sb).flatMap((seg) =>
+    (seg.do ?? []).flatMap((action) => ("goto" in action ? [action.goto] : [])),
+  );
 }

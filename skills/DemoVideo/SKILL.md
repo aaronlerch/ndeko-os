@@ -78,6 +78,32 @@ When `$ARGUMENTS` is `install`, or the person says nothing is set up:
 - Every claim the narration makes covered by a `preflight` check, so the same
   demo cannot be re-recorded against stale data.
 
+## When a word is pronounced wrong
+
+This is a **correction to the machine, not an edit to the demo.** Capture it in
+the shared glossary and re-dub; never respell the word inside the storyboard's
+narration text, which would fix one line in one demo, leave the committed copy
+reading as gibberish, and leave every other demo saying it wrong.
+
+```bash
+demo-video glossary --test "the line that was wrong" --host <site>   # check a respelling first
+demo-video glossary --add <Term> --say "<how it sounds>" --host <site> --because "<why>"
+demo-video record <name> --renarrate
+```
+
+- **Scope it, and say which scope you chose.** `--host` for a pronunciation
+  that belongs to a site, `--context <tag>` for one that belongs to a subject
+  (the storyboard opts in with its `context` field), neither for a machine-wide
+  default. The same word can carry all three — that is the point.
+- **`--test` before `--add`.** Respellings are guesses; rendering one costs a
+  synthesis pass and listening to it costs more.
+- **`--renarrate` re-dubs the existing recording** — the walk is not repeated,
+  and only clips whose audio actually changed are re-synthesised.
+- **Read the fit report.** A longer respelling can outgrow the footage between
+  its mark and the next; the runner names any clip that does. If one overflows,
+  say so and offer to re-record rather than shipping narration that runs over
+  the next segment's visuals.
+
 ## Constraints
 
 **Never claim the video is good without watching it.** A green exit means

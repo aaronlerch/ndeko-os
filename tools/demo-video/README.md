@@ -32,6 +32,7 @@ a later sync, so anything configured here survives.
 | Storyboards | `${XDG_CONFIG_HOME:-~/.config}/demo-video/storyboards/<name>.json` |
 | Rendered output | `${XDG_CONFIG_HOME:-~/.config}/demo-video/out/<name>/` |
 | Voice config | `${XDG_CONFIG_HOME:-~/.config}/demo-video/voice.json` |
+| Pronunciations | `${XDG_CONFIG_HOME:-~/.config}/demo-video/glossary.json` |
 | Saved sessions | `${XDG_CONFIG_HOME:-~/.config}/demo-video/sessions/<name>.json` |
 
 That config directory is **shared with the repo install**, deliberately: a voice
@@ -120,6 +121,78 @@ further down", not "go press that button".
 **Assert every fact you narrate.** If a sentence says "including the two new
 fields", add a preflight check that those fields have values. A `url` +
 `expectText` check covers any site; the `sql` form needs a `DATABASE_URL`.
+
+## Pronunciation: the glossary
+
+A synthesiser guesses, and some of its guesses are wrong in ways only someone
+who knows the product hears. `Todo` in a Linear demo is *too-DOO*; read as a
+word it comes out *TOE-doe*. Corrections live in one machine-local file:
+
+```
+${XDG_CONFIG_HOME:-~/.config}/demo-video/glossary.json
+```
+
+Beside the voice config, and **shared by both installs** — a correction made
+once applies to every storyboard on the machine. A pronunciation is a property
+of the machine's voice, not of any one demo.
+
+```bash
+demo-video glossary                                   # list what is configured
+demo-video glossary --add Todo --say "too doo" --host linear.app --because "Linear's state"
+demo-video glossary --add Todo --say "toe doe" --context hobbit-names
+demo-video glossary --test "Move the Todo to done" --host linear.app
+demo-video glossary --remove Todo --host linear.app
+```
+
+**Respellings, not phonemes.** An entry replaces a term with ordinary letters
+that happen to sound right. Phoneme markup — SSML, macOS `[[inpt PHON]]`,
+eSpeak IPA — was the obvious alternative and is wrong here for one decisive
+reason: the voice tier is "any binary that accepts `--text`", so markup one
+engine honours another passes straight through and *speaks*, turning a
+mispronounced word into a recitation of its phonetic spelling. A respelling
+degrades to "still intelligible" everywhere, and a human can read the glossary.
+
+**Scope, because pronunciation depends on what is on screen.** An entry may be
+scoped to hosts, to named contexts, or left unscoped as the machine-wide
+default. Most specific wins:
+
+| Match | Score |
+|---|---|
+| `when.contexts` | 2 |
+| `when.hosts` | 1 |
+| unscoped | 0 |
+
+An entry whose `when` does *not* match is excluded outright — a Linear-scoped
+pronunciation must never leak into a demo of something else, which is the point
+of scoping it.
+
+Hosts come from the storyboard's `baseUrl` **and every absolute `goto`**, so a
+walk that crosses onto another site picks up that site's entries partway
+through. Contexts are declared by the storyboard's `context` field, for scopes a
+URL cannot express — a subject matter rather than a site.
+
+Matching is case-insensitive and anchored to word boundaries, so `Todo` rewrites
+`TODO` and `todo` but never the inside of `Todoist`. Longer terms are applied
+first, so a multi-word term wins over a single word inside it.
+
+### Fixing a pronunciation in a video you already recorded
+
+```bash
+demo-video glossary --test "the line that was wrong" --host the-site.com   # check the respelling
+demo-video glossary --add Todo --say "too doo" --host the-site.com         # keep it
+demo-video record <name> --renarrate                                  # re-dub, no re-record
+```
+
+`--renarrate` re-renders the narration and lays it back onto the **existing**
+recording — the walk is not repeated. Clips are cached on the *spoken* text, so
+only the lines whose audio actually changed are re-synthesised.
+
+**It also checks that the new clips still fit.** The assembler places each clip
+at its recorded mark and never looks at the clip's length, so a clip that grew
+would simply play over the next segment's visuals with nothing said about it.
+The runner compares every re-narrated clip against the footage between its mark
+and the next, and names any that overflow — that is the one way a pronunciation
+fix can quietly damage a demo.
 
 ## Voice
 
@@ -245,6 +318,8 @@ Each of these cost a take or an afternoon.
 | `run.ts` | CLI: preflight → narration → takes → assemble |
 | `doctor.ts` | CLI: report readiness, name every fix |
 | `voice.ts` | CLI: set up and test the machine's voices |
+| `glossary.ts` | CLI: teach the narrator how to say a word |
+| `lib/glossary.ts` | Scope resolution and text rewriting |
 | `login.ts` | CLI: capture and manage browser sessions |
 | `product.ts` | This install's own config — never overwritten by a sync |
 | `lib/storyboard.ts` | Types, loading, validation |

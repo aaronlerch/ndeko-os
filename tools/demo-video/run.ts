@@ -7,6 +7,7 @@
  *   bun run demo:record <name> --reset
  *   bun run demo:record <name> --take 2
  *   bun run demo:record <name> --assemble-only
+ *   bun run demo:record <name> --renarrate
  *   bun run demo:record <name> --out /tmp/demos
  *   bun run demo:record <name> --engine interceptor
  *
@@ -33,6 +34,12 @@ import { join, resolve as resolvePath } from "node:path";
 import { assemble } from "./lib/assemble";
 import { configDir } from "./lib/config-dir";
 import {
+  type GlossaryContext,
+  hostsOf,
+  loadGlossary,
+  resolve as resolveGlossary,
+} from "./lib/glossary";
+import {
   checkInterceptor,
   checkStack,
   checkTooling,
@@ -42,7 +49,12 @@ import {
 import type { TakeRecording } from "./lib/record";
 import { recordTake } from "./lib/record";
 import { describeExpiry, loadSession } from "./lib/session";
-import { DEFAULTS, allSegments, loadStoryboard } from "./lib/storyboard";
+import {
+  DEFAULTS,
+  allGotos,
+  allSegments,
+  loadStoryboard,
+} from "./lib/storyboard";
 import { type Timing, renderNarration } from "./lib/tts";
 import { describe, resolveVoice } from "./lib/voice";
 import { PRODUCT } from "./product";
@@ -121,7 +133,7 @@ if (
 const target = process.argv[2];
 if (!target || target.startsWith("--")) {
   die(
-    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--out dir] [--engine playwright|interceptor]`,
+    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--renarrate] [--out dir] [--engine playwright|interceptor]`,
   );
 }
 
@@ -183,6 +195,17 @@ if (!tooling.ok) {
 const timingsPath = join(outDir, "timings.json");
 let timings: Timing[];
 
+// Scope for the machine's pronunciation glossary: hosts come from the
+// storyboard's own destinations, contexts are declared by the storyboard.
+const glossaryContext: GlossaryContext = {
+  hosts: hostsOf(sb.baseUrl ?? DEFAULTS.baseUrl, allGotos(sb)),
+  contexts: sb.context ?? [],
+};
+const glossary = resolveGlossary(
+  await loadGlossary().catch((e: Error) => die(e.message)),
+  glossaryContext,
+);
+
 if (has("assemble-only") && existsSync(timingsPath)) {
   timings = JSON.parse(await readFile(timingsPath, "utf8"));
   console.log(`\nnarration  (reusing ${timings.length} clips)`);
@@ -191,6 +214,14 @@ if (has("assemble-only") && existsSync(timingsPath)) {
     die(e.message),
   );
   console.log(`\nnarration  voice: ${describe(voice)}`);
+  if (glossary.length > 0) {
+    const scope = [...glossaryContext.contexts, ...glossaryContext.hosts].join(
+      ", ",
+    );
+    console.log(
+      `  glossary   ${glossary.length} term(s) in scope${scope ? ` for ${scope}` : ""}`,
+    );
+  }
   if (voice.source === "fallback") {
     console.log(
       `  note: no voice configured, using the system synthesiser.
@@ -201,6 +232,7 @@ if (has("assemble-only") && existsSync(timingsPath)) {
     allSegments(sb),
     voice,
     join(outDir, "audio"),
+    glossary,
   ).catch((e: Error) => die(e.message));
   await writeFile(timingsPath, `${JSON.stringify(timings, null, 2)}\n`);
   await writeFile(
@@ -213,7 +245,7 @@ if (has("assemble-only") && existsSync(timingsPath)) {
 const only = flag("take") ? Number.parseInt(flag("take") as string, 10) : null;
 const marksPath = (i: number) => join(outDir, `marks-${i + 1}.json`);
 
-if (!has("assemble-only")) {
+if (!has("assemble-only") && !has("renarrate")) {
   const baseUrl = sb.baseUrl ?? DEFAULTS.baseUrl;
 
   for (const [i, take] of sb.takes.entries()) {
@@ -294,6 +326,45 @@ for (const [i] of sb.takes.entries()) {
   recordings.push(JSON.parse(await readFile(marksPath(i), "utf8")));
 }
 
+// ── does the new narration still fit the recorded footage? ──────────────────
+//
+// Only meaningful for a re-dub. On a normal run the walk READ these durations
+// and held each screen at least that long, so they fit by construction. On a
+// `--renarrate` the video is fixed and the audio has just changed underneath
+// it — and `assemble` places each clip at its recorded mark with `adelay`
+// without ever looking at the clip's length, so a clip that grew simply plays
+// over the next segment's visuals, or past the end of the video, with nothing
+// said about it. This is the one way a glossary fix can quietly damage a demo.
+if (has("renarrate")) {
+  const seconds = new Map(timings.map((t) => [t.id, t.seconds]));
+  const overflows: string[] = [];
+  for (const [ti, take] of recordings.entries()) {
+    for (const [mi, mark] of take.marks.entries()) {
+      const clip = seconds.get(mark.id);
+      if (clip === undefined || clip === 0) continue;
+      // The screen is held until the next mark, or to the end of the walk.
+      const next = take.marks[mi + 1];
+      const window = (next ? next.t : take.total) - mark.t;
+      if (clip > window + 0.05) {
+        overflows.push(
+          `    take ${ti + 1}  ${mark.id}  clip ${clip.toFixed(1)}s > ${window.toFixed(1)}s of footage  (over by ${(clip - window).toFixed(1)}s)`,
+        );
+      }
+    }
+  }
+  if (overflows.length > 0) {
+    console.log(
+      `\n  ! ${overflows.length} clip(s) no longer fit the recording:
+${overflows.join("\n")}
+    The mp4 will still assemble, and the narration will run over the
+    next segment's visuals. Re-record to fix it properly:
+      ${PRODUCT.cmd.record} ${sb.name}`,
+    );
+  } else {
+    console.log("\n  every re-narrated clip still fits its recorded footage");
+  }
+}
+
 console.log("\nassemble");
 const output = join(outDir, `${sb.name}.mp4`);
 const result = await assemble(recordings, timings, output).catch((e: Error) =>
@@ -311,6 +382,9 @@ await writeFile(
       voice: JSON.parse(
         await readFile(join(outDir, "voice.json"), "utf8").catch(() => "null"),
       ),
+      glossary: timings
+        .filter((t) => t.substitutions?.length)
+        .map((t) => ({ id: t.id, spoken: t.spoken, terms: t.substitutions })),
       takes: recordings.map((r) => ({
         profile: r.profile,
         session: r.session,

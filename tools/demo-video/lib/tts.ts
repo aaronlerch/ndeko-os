@@ -12,6 +12,11 @@ import { createHash } from "node:crypto";
  */
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import {
+  type ResolvedTerm,
+  type Substitution,
+  applyGlossary,
+} from "./glossary";
 import type { Segment } from "./storyboard";
 import { type ResolvedVoice, speak } from "./voice";
 
@@ -19,6 +24,13 @@ export interface Timing {
   id: string;
   seconds: number;
   file: string;
+  /**
+   * What the synthesiser was actually given, when the glossary rewrote it.
+   * Recorded so the manifest can show why a clip says something the storyboard
+   * does not literally contain.
+   */
+  spoken?: string;
+  substitutions?: Substitution[];
 }
 
 export async function probeDuration(file: string): Promise<number> {
@@ -58,6 +70,7 @@ export async function renderNarration(
   segments: Segment[],
   voice: ResolvedVoice,
   audioDir: string,
+  glossary: ResolvedTerm[] = [],
 ): Promise<Timing[]> {
   await mkdir(audioDir, { recursive: true });
   const fingerprint = sha(JSON.stringify(voice.profile), 8);
@@ -69,14 +82,25 @@ export async function renderNarration(
       console.log(`  ${seg.id}  (silent)`);
       continue;
     }
-    const hash = sha(`${fingerprint} ${seg.say}`, 12);
+    // Hash the SPOKEN text, not the authored text. A glossary edit then
+    // invalidates exactly the clips whose audio actually changed and nothing
+    // else — the cache stays correct for free, with no version stamp to keep
+    // in sync and no way for a stale clip to survive a pronunciation fix.
+    const { spoken, substitutions } = applyGlossary(seg.say, glossary);
+    const hash = sha(`${fingerprint} ${spoken}`, 12);
     const file = `${audioDir}/${seg.id}.${hash}.wav`;
     const cached = existsSync(file);
-    if (!cached) await speak(voice.profile, seg.say, file);
+    if (!cached) await speak(voice.profile, spoken, file);
     const seconds = await probeDuration(file);
-    timings.push({ id: seg.id, seconds, file });
+    timings.push({
+      id: seg.id,
+      seconds,
+      file,
+      ...(substitutions.length > 0 ? { spoken, substitutions } : {}),
+    });
+    const said = substitutions.map((s) => `${s.term}→${s.say}`).join(", ");
     console.log(
-      `  ${seg.id}  ${seconds.toFixed(1)}s${cached ? "  (cached)" : ""}`,
+      `  ${seg.id}  ${seconds.toFixed(1)}s${cached ? "  (cached)" : ""}${said ? `  [${said}]` : ""}`,
     );
   }
   return timings;

@@ -18,6 +18,7 @@
  * which is the same contract `demo:deps --check` already uses.
  */
 import type { CheckResult, DoctorCheck } from "./lib/doctor-check";
+import { loadGlossary } from "./lib/glossary";
 import { checkTooling } from "./lib/preflight";
 import { listSessions } from "./lib/session";
 import {
@@ -77,6 +78,19 @@ const GENERIC: DoctorCheck[] = [
       return {
         ok: true,
         detail: `${describe(resolved)}  (${names.length} profile(s) in ${configPath()})`,
+      };
+    },
+  },
+  {
+    name: "glossary",
+    async run(): Promise<CheckResult> {
+      const glossary = await loadGlossary();
+      const n = glossary.entries.length;
+      return {
+        ok: true,
+        detail: n
+          ? `${n} pronunciation(s)`
+          : `none — narration uses the voice's defaults (${PRODUCT.cmd.glossary} --help)`,
       };
     },
   },
