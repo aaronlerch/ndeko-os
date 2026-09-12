@@ -172,6 +172,10 @@
             "type": "command",
             "command": "bun --env-file=/dev/null $HOME/.claude/hooks/PrivacyBoundary.hook.ts",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/AuthoringDoctrine.hook.ts"
           }
         ]
       },

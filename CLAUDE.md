@@ -26,6 +26,8 @@ Paths are `~/`-absolute so they resolve from any working directory — these fil
 | Algorithm doctrine | `~/.claude/algorithm/LATEST` → `~/.claude/algorithm/v{VERSION}.md` |
 | Verification rules (7, incident-derived) | `~/.claude/doctrine/verification.md` |
 | Where a new rule belongs | `~/.claude/doctrine/self-healing.md` |
+| Writing any agent-facing document | `~/.claude/doctrine/authoring.md` |
+| Skill mechanics — invocation, routers, naming | `~/.claude/doctrine/authoring-mechanics.md` |
 | Why the system is shaped this way | `~/.claude/doctrine/philosophy.md` |
 | Path resolution — the single authority | `~/.claude/hooks/lib/paths.ts` |
 | Hooks | `~/.claude/hooks/*.hook.ts`, wired in `~/.claude/settings.json` → `hooks` |

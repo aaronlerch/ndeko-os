@@ -30,7 +30,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { agentsMdFile, assistantFile, claudeMdFile, harnessRoot, systemPromptFile } from "../hooks/lib/paths.ts";
+import { agentsMdFile, assistantFile, claudeMdFile, harnessPath, harnessRoot, systemPromptFile } from "../hooks/lib/paths.ts";
 
 const DIGEST_MARKER = "<!-- ndeko:sources-digest ";
 
@@ -57,6 +57,15 @@ function sources(): Source[] {
       path: claudeMdFile(),
       label: "CLAUDE.md",
       note: "Routing table and operational rules.",
+    },
+    {
+      // The one doctrine file that belongs in the portable artifact: every harness
+      // authors skills and instruction files, so this is the doctrine whose absence
+      // would be felt identically in all of them. The others (verification,
+      // self-healing, philosophy) stay Claude-Code-only and on-demand.
+      path: harnessPath("doctrine", "authoring.md"),
+      label: "doctrine/authoring.md",
+      note: "How to write any document an agent consumes.",
     },
   ];
 }

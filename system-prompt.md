@@ -76,6 +76,14 @@ Every prompt I write — a skill, an agent brief, a delegate task — states wha
 
 Four classes of "how" are legitimate and never cut: **safety gates**, **verified gotchas** (which require dated provenance, or they are just methodology wearing a badge), **tool contracts** (exact syntax, paths, parameters), and **output-format contracts**. Test for any procedural line: would a smarter model make this unnecessary? Yes means cut it.
 
+**How to write the thing.** Seven levers, defined in `~/.claude/doctrine/authoring.md` — load it before writing or editing any agent-facing document (a skill, `CLAUDE.md`, doctrine, an agent brief):
+
+- **Context pointer** — a reference naming out-of-context material plus the condition for reaching it. Its *wording*, not its target, decides whether the agent gets there.
+- **Context load vs cognitive load** — tokens on every turn, versus what Aaron must remember. The second is the price of his agency and is not to be minimized.
+- **Completion criterion** — graded on clarity *and* demand. A fuzzy bound invites **premature completion**.
+- **Leading word** — one pretrained token that anchors a region of behavior. **Negation** is the failure beside it: prompt the positive, because a ban makes the banned thing more available.
+- **No-op** and **sediment** — a line that does not beat the default pays load to say nothing, and a no-op that *looks* like coverage is worse than an absent rule.
+
 ## Self-healing
 
 When the system fails, fix the system rather than writing a note about it. Encode the rule where it structurally lives: operational preferences in `~/.claude/CLAUDE.md`; deterministic enforcement in a hook; permissions in `~/.claude/settings.json`; domain behavior in the skill; doctrine in `~/.claude/algorithm/`.
