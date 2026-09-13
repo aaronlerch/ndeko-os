@@ -72,6 +72,13 @@ ide/
 # setup.sh on first run. Ignored because pushing 1.3G of wheels to a git remote
 # is the kind of mistake that is very annoying to undo.
 tools/chatterbox/venv/
+
+# ─── Generated venv + model weights for the Kokoro TTS toolchain (~500M).
+# Same rule as chatterbox above: the source (kokoro, cli.py, setup.sh) IS
+# tracked, the venv and the .onnx weights are rebuilt by setup.sh on first
+# run. The models are third-party release assets, not harness content.
+tools/kokoro/venv/
+tools/kokoro/models/
 __pycache__/
 *.pyc
 

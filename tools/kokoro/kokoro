@@ -1,0 +1,17 @@
+#!/bin/bash
+# Entry point wrapper for the Kokoro CLI.
+# Ensures the venv + model files exist (auto-runs setup.sh on first invocation),
+# then dispatches to cli.py inside the venv's Python.
+
+set -euo pipefail
+
+# Self-located: this script always sits at <harness>/tools/kokoro/, so the root
+# is wherever it is. No config-root literal to go stale on a rename.
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+VENV="$ROOT/venv"
+
+if [ ! -x "$VENV/bin/python" ]; then
+  "$ROOT/setup.sh"
+fi
+
+exec "$VENV/bin/python" "$ROOT/cli.py" "$@"
