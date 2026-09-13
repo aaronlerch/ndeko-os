@@ -54,6 +54,44 @@ and render to `${XDG_CONFIG_HOME:-~/.config}/demo-video/out/<name>/`. Read
 `~/.claude/tools/demo-video/README.md` for the storyboard format, the target
 grammar, and the engine trade-offs before authoring one.
 
+## Recording — narration is approved before the walk
+
+**Never run a full `record` on a storyboard whose narration has not been heard.**
+Render the audio, play it, fix what is wrong, and only then drive the browser.
+
+```bash
+demo-video record <storyboard> --narrate-only    # clips + timings, no browser
+```
+
+Then, for each clip in order, **actually play it** — `afplay <file>`; the runner
+prints a ready-made chain. Then ask for a verdict and hold there. This is the one
+part of the pipeline that cannot be checked by any tool: pronunciation has to be
+heard by the person whose product is being named.
+
+Loop until they approve:
+
+1. `--narrate-only` renders and reports each clip's file, duration, and the text
+   actually spoken.
+2. Play the clips and ask. Name the terms at risk — product, company and customer
+   names are where the synthesiser guesses — rather than asking "does this sound
+   OK" and hoping.
+3. Take each correction into the **glossary**, never into the storyboard (see
+   below), then re-run `--narrate-only` and replay only what changed.
+4. On approval, run `demo-video record <storyboard>` with **no `--out` override**
+   that differs from the narrate-only run.
+
+**The loop is close to free, and the reason is the cache.** Clips are keyed on a
+hash of the spoken text and the voice, so the full run re-uses every clip that was
+approved — byte for byte, no re-synthesis — and a correction re-renders only the
+clips whose text actually changed. Approving first costs one synthesis pass of a
+few seconds and saves a browser walk.
+
+**Why before and not after.** `--renarrate` re-dubs an existing recording without
+repeating the walk, which is the right tool for a correction found late. It cannot
+fix everything, though: the walk held each screen for the *old* clip's length, so a
+corrected clip that comes out longer runs past its screen and the fit report says
+so. Approving first means that never arises.
+
 ## `install` — walk the setup
 
 When `$ARGUMENTS` is `install`, or the person says nothing is set up:
@@ -81,28 +119,46 @@ When `$ARGUMENTS` is `install`, or the person says nothing is set up:
 ## When a word is pronounced wrong
 
 This is a **correction to the machine, not an edit to the demo.** Capture it in
-the shared glossary and re-dub; never respell the word inside the storyboard's
-narration text, which would fix one line in one demo, leave the committed copy
-reading as gibberish, and leave every other demo saying it wrong.
+the shared glossary; never respell the word inside the storyboard's narration
+text, which would fix one line in one demo, leave the committed copy reading as
+gibberish, and leave every other demo saying it wrong.
+
+The glossary at `${XDG_CONFIG_HOME:-~/.config}/demo-video/glossary.json` serves
+both synthesisers, and an entry carries up to two levers:
+
+| lever | who reads it | when to reach for it |
+|---|---|---|
+| `say` | **every** engine, Chatterbox included | always — it is the universal fallback and is required |
+| `ipa` | Kokoro only | when the voice is a Kokoro one and `say` cannot get the stress right |
 
 ```bash
-demo-video glossary --test "the line that was wrong" --host <site>   # check a respelling first
+demo-video glossary --test "the line that was wrong" --host <site>
 demo-video glossary --add <Term> --say "<how it sounds>" --host <site> --because "<why>"
-demo-video record <name> --renarrate
+
+# Kokoro voices — exact phonemes, and the writer that preserves BOTH fields:
+~/.claude/tools/kokoro/kokoro pronounce --audition <Term> --ipa '…' --ipa '…'
+~/.claude/tools/kokoro/kokoro pronounce --add <Term> --ipa '<winner>' --say '<respelling>'
 ```
 
-- **Scope it, and say which scope you chose.** `--host` for a pronunciation
-  that belongs to a site, `--context <tag>` for one that belongs to a subject
-  (the storyboard opts in with its `context` field), neither for a machine-wide
-  default. The same word can carry all three — that is the point.
-- **`--test` before `--add`.** Respellings are guesses; rendering one costs a
-  synthesis pass and listening to it costs more.
-- **`--renarrate` re-dubs the existing recording** — the walk is not repeated,
-  and only clips whose audio actually changed are re-synthesised.
-- **Read the fit report.** A longer respelling can outgrow the footage between
-  its mark and the next; the runner names any clip that does. If one overflows,
-  say so and offer to re-record rather than shipping narration that runs over
-  the next segment's visuals.
+- **Use `kokoro pronounce --add` as the writer whenever an entry has an `ipa`.**
+  `demo-video glossary --add` rebuilds the entry from its own fields and drops the
+  phonemes. It takes `--say`, `--host`, `--context` and `--because` too, so nothing
+  is lost by preferring it.
+- **Scope it, and say which scope you chose.** `--host` for a pronunciation that
+  belongs to a site, `--context <tag>` for one that belongs to a subject (the
+  storyboard opts in with its `context` field), neither for a machine-wide default.
+  The same word can carry all three — that is the point.
+- **`--test` before `--add`, and `--audition` before committing an `ipa`.**
+  Respellings and phoneme strings are both guesses; the audition renders each
+  candidate alongside the synthesiser's own guess as a control, so the comparison
+  happens in one ear.
+- **A respelling that changes nothing is worse than no entry.** `--test` prints
+  the before and after; if they match, do not add it.
+- **If the demo was already recorded**, `demo-video record <name> --renarrate`
+  re-dubs without repeating the walk, and only clips whose audio changed are
+  re-synthesised. **Read the fit report** — a longer clip can outgrow the footage
+  between its mark and the next. If one overflows, say so and offer to re-record
+  rather than shipping narration that runs over the next segment's visuals.
 
 ## Constraints
 

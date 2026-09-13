@@ -35,6 +35,7 @@ export const PRODUCT: Product = {
     login: "demo-video login",
     deps: "demo-video deps",
     doctor: "demo-video doctor",
+    glossary: "demo-video glossary",
     publish: null,
   },
 

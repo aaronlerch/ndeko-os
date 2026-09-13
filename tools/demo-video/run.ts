@@ -8,6 +8,7 @@
  *   bun run demo:record <name> --take 2
  *   bun run demo:record <name> --assemble-only
  *   bun run demo:record <name> --renarrate
+ *   bun run demo:record <name> --narrate-only
  *   bun run demo:record <name> --out /tmp/demos
  *   bun run demo:record <name> --engine interceptor
  *
@@ -133,7 +134,7 @@ if (
 const target = process.argv[2];
 if (!target || target.startsWith("--")) {
   die(
-    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--renarrate] [--out dir] [--engine playwright|interceptor]`,
+    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--renarrate] [--narrate-only] [--out dir] [--engine playwright|interceptor]`,
   );
 }
 
@@ -239,6 +240,30 @@ if (has("assemble-only") && existsSync(timingsPath)) {
     join(outDir, "voice.json"),
     `${JSON.stringify({ ...voice, describe: describe(voice) }, null, 2)}\n`,
   );
+}
+
+// ── narrate-only ────────────────────────────────────────────────────────────
+// Stop here, before the walk. Pronunciation is the one thing that cannot be
+// judged from a storyboard — it has to be heard — and `--renarrate` is not a
+// complete fix for it: it re-dubs an EXISTING recording, so a corrected clip
+// that comes out longer than the one the walk was held for runs past its
+// screen. Approving the audio first is therefore cheaper than it looks, and
+// costs nothing on the second pass: clips are cached by a hash of text and
+// voice, so the later full run reuses every clip that was approved here.
+if (has("narrate-only")) {
+  const total = timings.reduce((sum, t) => sum + t.seconds, 0);
+  console.log(`\nnarration only — no walk, no video`);
+  for (const t of timings) {
+    const said = t.spoken ? `  [${t.spoken}]` : "";
+    console.log(`  ${t.id}  ${t.seconds.toFixed(1)}s  ${t.file}${said}`);
+  }
+  console.log(`\n  ${timings.length} clip(s), ${total.toFixed(1)}s total`);
+  console.log(`\nhear it in order:`);
+  console.log(`  ${timings.map((t) => `afplay ${t.file}`).join(" && ")}`);
+  console.log(`\nfix a word:   ${PRODUCT.cmd.glossary} --add <term> --say "<how it sounds>"`);
+  console.log(`re-render:    ${PRODUCT.cmd.record} <storyboard> --narrate-only`);
+  console.log(`then record:  ${PRODUCT.cmd.record} <storyboard>`);
+  process.exit(0);
 }
 
 // ── takes ───────────────────────────────────────────────────────────────────

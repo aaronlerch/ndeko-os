@@ -14,8 +14,12 @@ The complement to the Chatterbox CLI next door, not a replacement:
   chatterbox  cloned voices, cue tags ([sigh], [laugh]), expressive. ~realtime
               on turbo, 1.5-2.4x SLOWER than realtime on standard. 1.5G venv.
   kokoro      54 fixed voices, no cloning, no emotion tags at all. 12-22x
-              realtime on CPU. ~500M on disk. Deterministic: same text in, same
-              audio out, every time.
+              realtime on CPU. ~500M on disk. No sampling lottery: the same text
+              gives the same reading and the same DURATION every time, which is
+              what demo-video's timing arithmetic depends on. Not bit-identical
+              though -- ONNX float reductions vary run to run, so the bytes
+              differ while the audio does not (measured 2026-09-13: 3 runs, 3
+              hashes, one duration).
 
 Reach for kokoro when the job is narration and for chatterbox when the job is a
 voice. (Verified against kokoro-onnx 0.6.1, 2026-09-13.)

@@ -20,7 +20,7 @@ Arguments passed: `$ARGUMENTS`
 | Voice | 54 fixed, no cloning | any voice you cloned |
 | Cue tags `[sigh]` `[laugh]` | **none** — read aloud as text | turbo/nano only |
 | Speed | ~10x realtime | ~0.4x realtime on turbo |
-| Determinism | same text, same audio, always | seed-dependent |
+| Determinism | same reading and duration every time (bytes vary — ONNX float noise) | seed-dependent, reroll for a different take |
 
 Measured on the same 11-second line, 2026-09-13: kokoro 2.76s end-to-end, chatterbox
 turbo 27.4s. **Default to `/speak` for narration and anything long; switch to `/say`
