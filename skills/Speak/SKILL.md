@@ -106,47 +106,73 @@ These are different from `--sentence-pause` / `--clause-pause`, which lengthen t
 model's own natural gaps at punctuation across the whole clip. Use the flags to
 change pacing, `[pause:N]` to place one specific beat.
 
-## Pronunciation
+## Pronunciation — one glossary, both engines
 
 Kokoro's G2P is espeak-ng, which guesses at anything outside its dictionary and is
 confidently wrong about product and company names. It mispronounces this very model:
-`Kokoro` → `kəkˈɔːɹoʊ`, "kuh-KOR-oh".
+`Kokoro` → `kəkˈɔːɹoʊ`, "kuh-KOR-oh". Chatterbox never has this problem because it has
+no G2P stage — it works from your reference audio, which already contains the word.
 
-**There is no inline escape.** espeak's own `[[phonemes]]` syntax is mangled by the
-phonemizer wrapper before espeak sees it — verified 2026-09-13, it reads the brackets
-aloud as letters. Respelling the word ("Dijibul") fixes the consonants but not the
-stress. The only precise lever is a phoneme override, which the CLI keeps in a lexicon.
+**There is one store for both engines**, demo-video's glossary:
 
-```bash
-kokoro pronounce                                    # list what is corrected
-kokoro pronounce --audition <word> --ipa '…' --ipa '…'   # render candidates + control
-kokoro pronounce --add <word> --ipa '…' --because '…'    # keep the winner
-kokoro pronounce --test "a whole sentence"          # phonemes before/after, no audio
-kokoro pronounce --remove <word>
+```
+${XDG_CONFIG_HOME:-~/.config}/demo-video/glossary.json
 ```
 
-**`--audition` before `--add`, every time.** The right IPA cannot be reasoned out —
-it has to be heard. Audition renders each candidate *plus espeak's own guess as a
-control*, in the voice that will ship, so the comparison is in one ear. `--test` is
-the fast half of the loop: phonemes only, no render.
+Entries carry two ways of saying a word, and which one an engine uses is the whole design:
 
-The lexicon applies automatically to every `tts` call, including the ones demo-video
-makes, and reports on stderr which terms it touched. `--no-lexicon` bypasses it.
+| field | who reads it | what it does |
+|---|---|---|
+| `say` | **every** engine, Chatterbox included | rewrites the narration text (`Todo` → `too doo`) |
+| `ipa` | Kokoro only | exact phonemes, looked up out of band — never printed into the text |
 
-**The lexicon lives in the data tree** (`${NDEKO_DATA_DIR}/voice-profiles/kokoro-lexicon.json`),
-not in this repo, and that is a privacy boundary rather than a filing preference: the
-words worth correcting are employer, customer and product names.
+`say` is required and stays the universal fallback. demo-video's own reasoning for that
+is worth keeping: its voice tier is "any binary that accepts `--text`", so phoneme markup
+one engine honours another **speaks aloud**, turning a mispronounced word into a
+recitation of its phonetic spelling. A respelling degrades to "still intelligible"
+everywhere. `ipa` is only safe because it never travels through `--text`.
 
-Two things to know:
+When the other engines already say a word correctly and only Kokoro is wrong, set
+`say` to the term itself — that is an honest "no text rewrite needed", not a placeholder.
 
+```bash
+kokoro pronounce                                         # list, with scope
+kokoro pronounce --audition <word> --ipa '…' --ipa '…'   # candidates + espeak control
+kokoro pronounce --add <word> --ipa '…' [--say '…']      # keep the winner
+kokoro pronounce --test "a whole sentence" [--host h]    # phonemes before/after
+kokoro pronounce --remove <word> [--host h] [--context c]
+```
+
+**`--audition` before `--add`, every time.** The right IPA cannot be reasoned out — it has
+to be heard. Audition renders each candidate *plus espeak's own guess as a control*, in
+the voice that will ship. `--test` is the fast half: phonemes only, no render.
+
+### Scope comes along for free
+
+Glossary entries scope by host and named context (`Todo` is *too-DOO* in a Linear demo,
+*TOE-doe* when it is a person's name). Kokoro reads unscoped entries by default and takes
+`--host` / `--context` for the rest, scored exactly as demo-video scores them: contexts 2,
+hosts 1, unscoped 0, and a non-matching scope excludes an entry outright.
+
+**Scope also resolves transitively through demo-video**, which is why the lookup is keyed
+on *both* the term and its respelling. demo-video applies `say` before invoking this CLI,
+so the text arriving here may already read "dih juh bul" — a lookup for the original
+spelling would miss. Keyed on both, the exact phonemes win either way, and the respelling
+demo-video chose was already the scoped one.
+
+### Two things that will bite
+
+- **`demo-video glossary --add` drops the `ipa`.** It rebuilds the entry from its own
+  fields and writes it back, so re-adding a term that had phonemes silently loses them
+  (verified 2026-09-13). **Use `kokoro pronounce --add` as the writer** — it takes
+  `--say`, `--host`, `--context` and `--because` too, so it does everything the other
+  command does and preserves both fields. The one-line upstream fix, for whenever
+  demo-video's source is next touched, is to spread the existing entry before overwriting
+  it. Do not patch the local copy: it is synced from a product repo and the edit would be
+  overwritten, leaving a fix that works until it silently doesn't.
 - **A no-op entry is worse than no entry.** espeak already says plenty of acronyms
   correctly. `--test` proves whether an entry changes anything; if the two lines match,
   delete it.
-- **demo-video's glossary is a separate, earlier layer.** It rewrites text
-  (`Todo` → `too doo`) before any synthesiser sees it, so it works for Chatterbox too.
-  If a word is respelled there, the Kokoro lexicon will no longer match the original
-  spelling. Use the glossary for words both engines get wrong, the lexicon for precise
-  Kokoro stress control.
 
 ## Notes
 

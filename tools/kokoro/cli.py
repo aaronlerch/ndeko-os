@@ -68,15 +68,43 @@ DEFAULT_VOICE = "af_heart"
 
 # Kokoro's G2P is espeak-ng, which guesses at anything not in its dictionary and
 # is confidently wrong about names it has not seen. It mispronounces this very
-# model: "Kokoro" comes out kəkˈɔːɹoʊ ("kuh-KOR-oh"). There is no inline escape — espeak's own [[phoneme]] syntax is
-# mangled by the phonemizer wrapper before espeak ever sees it (verified
-# 2026-09-13), so the ONLY precise lever is to phonemize the text here and hand
-# the model phonemes with is_phonemes=True.
+# model: "Kokoro" comes out kəkˈɔːɹoʊ ("kuh-KOR-oh"). There is no inline escape
+# -- espeak's own [[phoneme]] syntax is mangled by the phonemizer wrapper before
+# espeak ever sees it (verified 2026-09-13), so the ONLY precise lever is to
+# phonemize the text here and hand the model phonemes with is_phonemes=True.
 #
-# The lexicon lives in the DATA tree, not here. That is a privacy boundary, not
-# a preference: the words worth fixing are employer, customer and product names,
-# and this repo must stay free of those.
-
+# -- One glossary, two engines ----------------------------------------------
+# Pronunciations live in demo-video's glossary, NOT in a second store of ours:
+#
+#   ${XDG_CONFIG_HOME:-~/.config}/demo-video/glossary.json
+#
+# That file already solved the hard part -- scoping by host and context, so
+# "Todo" is too-DOO in a Linear demo and TOE-doe when it is a person's name --
+# and a second store would have meant correcting each word twice and watching
+# the two drift. Entries gain one optional field, `ipa`, and NOTHING in
+# demo-video changes: it validates `term` and `say`, ignores fields it does not
+# know, and round-trips them through load/save untouched (verified 2026-09-13).
+# That matters because demo-video is synced from an upstream copy inside a
+# product repo, and any edit to its source is overwritten by the next sync.
+# Additive data survives that; forked code would not.
+#
+# `say` stays the universal fallback, and demo-video's reasoning for it is worth
+# preserving: its voice tier is "any binary that accepts --text", so phoneme
+# markup one engine honours another SPEAKS ALOUD, turning a mispronounced word
+# into a recitation of its phonetic spelling. A respelling degrades to "still
+# intelligible" everywhere. `ipa` is safe only because it never travels through
+# --text -- this CLI looks it up out of band.
+#
+#   say:  every engine, Chatterbox included. Required. Rewrites the text.
+#   ipa:  Kokoro only. Optional. Consulted here, never printed into the text.
+#
+# -- Why the map is keyed on BOTH term and say -------------------------------
+# demo-video applies `say` to the narration BEFORE invoking this CLI, so by the
+# time text arrives the term may already read "dih juh bul", and a lookup for
+# the original spelling would miss. Keying on both means the exact phonemes win
+# whether or not the rewrite already happened -- and scope resolution carries
+# through transitively, because demo-video picked the scoped respelling and that
+# respelling is itself a key.
 
 def fail(msg: str, code: int = 1):
     print(f"error: {msg}", file=sys.stderr)
@@ -106,43 +134,118 @@ def default_voice() -> str:
         return DEFAULT_VOICE
 
 
-def lexicon_path() -> Path:
-    return _data_root() / "voice-profiles" / "kokoro-lexicon.json"
+def glossary_path() -> Path:
+    """demo-video's glossary. NDEKO_GLOSSARY overrides it for a non-standard install."""
+    env = os.environ.get("NDEKO_GLOSSARY", "").strip()
+    if env:
+        return Path(os.path.expandvars(env)).expanduser()
+    base = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    root = Path(os.path.expandvars(base)).expanduser() if base else HOME / ".config"
+    return root / "demo-video" / "glossary.json"
 
 
-def load_lexicon() -> dict[str, dict]:
-    f = lexicon_path()
+def load_glossary() -> list[dict]:
+    f = glossary_path()
     try:
         data = json.loads(f.read_text())
     except FileNotFoundError:
-        return {}
+        return []
     except (OSError, json.JSONDecodeError) as e:
-        # A corrupt lexicon must not silently revert every word to the espeak
-        # guess — that is the failure this whole file exists to stop.
-        fail(f"lexicon at {f} is unreadable: {e}")
-    return {k.lower(): v for k, v in (data.get("entries") or {}).items()}
+        # A corrupt glossary must not silently revert every word to the espeak
+        # guess -- that is the failure this whole file exists to stop.
+        fail(f"glossary at {f} is unreadable: {e}")
+    entries = data.get("entries")
+    if not isinstance(entries, list):
+        fail(f"glossary at {f}: expected an 'entries' array")
+    return entries
 
 
-def save_lexicon(entries: dict[str, dict]):
-    f = lexicon_path()
+def save_glossary(entries: list[dict]):
+    f = glossary_path()
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps({"version": 1, "entries": entries}, indent=2, ensure_ascii=False) + "\n")
+    f.write_text(json.dumps({"version": 1, "entries": entries}, indent=2,
+                            ensure_ascii=False) + "\n")
 
 
-def apply_lexicon(text: str, lang: str, entries: dict[str, dict]) -> tuple[str | None, list[str]]:
-    """Phonemize `text`, substituting lexicon IPA for the terms it covers.
+def _overlaps(a, b) -> bool:
+    if not a:
+        return False
+    lower = {str(x).lower() for x in b}
+    return any(str(x).lower() in lower for x in a)
 
-    Returns (phoneme_string, applied_terms). The phoneme string is None when no
-    term matched, which is the signal to skip phoneme mode entirely and let
-    kokoro-onnx phonemize normally — the cheaper and better-tested path.
+
+def score_entry(entry: dict, hosts: list[str], contexts: list[str]) -> int | None:
+    """demo-video's scoring, ported exactly: contexts 2, hosts 1, unscoped 0.
+
+    None and 0 are different answers and the difference is load-bearing: 0 means
+    "the unscoped default, use it if nothing better matches"; None means "this
+    belongs to some other demo, never use it here".
     """
-    if not entries:
+    when = entry.get("when") or {}
+    if not when.get("hosts") and not when.get("contexts"):
+        return 0
+    points = 0
+    if when.get("contexts"):
+        if not _overlaps(when["contexts"], contexts):
+            return None
+        points += 2
+    if when.get("hosts"):
+        if not _overlaps(when["hosts"], hosts):
+            return None
+        points += 1
+    return points
+
+
+def resolve_glossary(entries: list[dict], hosts: list[str], contexts: list[str]) -> list[dict]:
+    """One winning entry per term for this scope, longest term first."""
+    by_term: dict[str, list[tuple[int, dict]]] = {}
+    for entry in entries:
+        term = entry.get("term")
+        if not isinstance(term, str) or not term.strip():
+            continue
+        points = score_entry(entry, hosts, contexts)
+        if points is None:
+            continue
+        by_term.setdefault(term.lower(), []).append((points, entry))
+    winners = []
+    for candidates in by_term.values():
+        # max() is stable on ties, so equal scores keep file order and the first
+        # definition wins rather than the answer depending on dict iteration.
+        winners.append(max(candidates, key=lambda c: c[0])[1])
+    return sorted(winners, key=lambda e: len(e["term"]), reverse=True)
+
+
+def pronunciation_map(resolved: list[dict]) -> dict[str, str]:
+    """Lookup keys -> IPA. Both the term and its respelling are keys; see above."""
+    out: dict[str, str] = {}
+    for entry in resolved:
+        ipa = (entry.get("ipa") or "").strip()
+        if not ipa:
+            continue
+        out[entry["term"].lower()] = ipa
+        say = (entry.get("say") or "").strip()
+        if say and say.lower() != entry["term"].lower():
+            out[say.lower()] = ipa
+    return out
+
+
+def apply_lexicon(text: str, lang: str, overrides: dict[str, str]) -> tuple[str | None, list[str]]:
+    """Phonemize `text`, substituting exact IPA for the terms the glossary covers.
+
+    Returns (phoneme_string, applied_terms). The phoneme string is None when
+    nothing matched, which is the signal to skip phoneme mode entirely and let
+    kokoro-onnx phonemize normally -- the cheaper and better-tested path.
+    """
+    if not overrides:
         return None, []
     from kokoro_onnx.tokenizer import Tokenizer
 
-    # Longest term first, so a two-word term wins over its first word alone.
-    terms = sorted(entries, key=len, reverse=True)
-    pattern = re.compile(r"\b(" + "|".join(re.escape(t) for t in terms) + r")\b", re.IGNORECASE)
+    # Longest key first, so a multi-word term wins over a single word inside it.
+    # Lookaround rather than \b so a term like "C++" or ".NET" still matches --
+    # \b beside punctuation asserts the opposite of what is wanted here.
+    keys = sorted(overrides, key=len, reverse=True)
+    pattern = re.compile(r"(?<!\w)(" + "|".join(re.escape(k) for k in keys) + r")(?!\w)",
+                         re.IGNORECASE)
     if not pattern.search(text):
         return None, []
 
@@ -152,11 +255,11 @@ def apply_lexicon(text: str, lang: str, entries: dict[str, dict]) -> tuple[str |
     for i, frag in enumerate(pattern.split(text)):
         if not frag:
             continue
-        if i % 2:  # capture group — a lexicon term
-            ipa = entries[frag.lower()]["ipa"]
+        if i % 2:  # capture group -- a glossary term
+            ipa = overrides[frag.lower()]
             kept = tok.known(ipa)
             if kept != ipa:
-                print(f"warning: dropped {sorted(set(ipa) - set(kept))} from '{frag}' — "
+                print(f"warning: dropped {sorted(set(ipa) - set(kept))} from '{frag}' -- "
                       f"outside Kokoro's phoneme vocabulary", file=sys.stderr)
             pieces.append(kept)
             applied.append(frag)
@@ -166,6 +269,7 @@ def apply_lexicon(text: str, lang: str, entries: dict[str, dict]) -> tuple[str |
             pieces.append(" ")
     # Collapse the seams: fragments were phonemized apart, so spacing is ours.
     return re.sub(r"\s+", " ", " ".join(pieces)).strip(), applied
+
 
 
 def model_paths() -> tuple[Path, Path]:
@@ -297,7 +401,8 @@ def cmd_tts(args):
         continuous=args.continuous,
     )
 
-    entries = {} if args.no_lexicon else load_lexicon()
+    overrides = {} if args.no_lexicon else pronunciation_map(
+        resolve_glossary(load_glossary(), args.host or [], args.context or []))
     all_applied: list[str] = []
 
     tracks: list[np.ndarray] = []
@@ -308,7 +413,7 @@ def cmd_tts(args):
         # Phoneme mode only when the lexicon actually covers something in this
         # segment; otherwise let kokoro-onnx phonemize, which is the path its own
         # normalisation and tests assume.
-        phonemes, applied = apply_lexicon(seg_text, lang, entries)
+        phonemes, applied = apply_lexicon(seg_text, lang, overrides)
         seg_kwargs = dict(kwargs, is_phonemes=phonemes is not None)
         render_text = phonemes if phonemes is not None else seg_text
         all_applied.extend(applied)
@@ -333,7 +438,7 @@ def cmd_tts(args):
 
     duration = len(combined) / sr
     if all_applied:
-        print(f"kokoro: pronunciation lexicon applied to {sorted(set(all_applied))}",
+        print(f"kokoro: glossary pronunciation applied to {sorted(set(all_applied))}",
               file=sys.stderr)
     print(f"kokoro: {duration:.2f}s of audio -> {out_path}", file=sys.stderr)
 
@@ -379,36 +484,87 @@ def cmd_voices(args):
         print("Blend two into a third:  --voice 'af_heart:0.6,bf_emma:0.4'")
 
 
+def _scope_of(args) -> dict:
+    when = {}
+    if args.host:
+        when["hosts"] = list(args.host)
+    if args.context:
+        when["contexts"] = list(args.context)
+    return {"when": when} if when else {}
+
+
+def _same_scope(entry: dict, args) -> bool:
+    when = entry.get("when") or {}
+    return (sorted(x.lower() for x in (when.get("hosts") or []))
+            == sorted(x.lower() for x in (args.host or []))
+            and sorted(x.lower() for x in (when.get("contexts") or []))
+            == sorted(x.lower() for x in (args.context or [])))
+
+
+def _describe_scope(entry: dict) -> str:
+    when = entry.get("when") or {}
+    bits = []
+    if when.get("contexts"):
+        bits.append("context " + ", ".join(when["contexts"]))
+    if when.get("hosts"):
+        bits.append("host " + ", ".join(when["hosts"]))
+    return ", ".join(bits) if bits else "everywhere"
+
+
 def cmd_pronounce(args):
-    entries = load_lexicon()
+    entries = load_glossary()
 
     if args.remove:
-        key = args.remove.lower()
-        if key not in entries:
-            fail(f"no lexicon entry for '{args.remove}'")
-        del entries[key]
-        save_lexicon(entries)
-        print(f"removed '{args.remove}' from {lexicon_path()}")
+        keep = [e for e in entries
+                if not (e.get("term", "").lower() == args.remove.lower() and _same_scope(e, args))]
+        if len(keep) == len(entries):
+            fail(f"no entry for '{args.remove}' at that scope — `kokoro pronounce` lists them")
+        save_glossary(keep)
+        print(f"removed '{args.remove}' from {glossary_path()}")
         return
 
     if args.add:
-        if not args.ipa:
-            fail("--add needs --ipa, e.g. --add Kokoro --ipa 'kˈoʊkoɹoʊ'\n"
-                 "       Audition candidates first: kokoro pronounce --audition Kokoro "
-                 "--ipa '...' --ipa '...'")
-        if len(args.ipa) > 1:
+        if not args.ipa and not args.say:
+            fail("--add needs --ipa and/or --say\n"
+                 "       --say  <respelling>  every engine, Chatterbox included\n"
+                 "       --ipa  <phonemes>    Kokoro only, exact\n"
+                 "       Audition first: kokoro pronounce --audition Kokoro --ipa '…' --ipa '…'")
+        if args.ipa and len(args.ipa) > 1:
             fail(f"--add takes one --ipa, got {len(args.ipa)}. Use --audition to compare, "
                  f"then --add the winner.")
-        from kokoro_onnx.tokenizer import Tokenizer
-        ipa = args.ipa[0]
-        kept = Tokenizer().known(ipa)
-        if kept != ipa:
-            print(f"warning: dropped {sorted(set(ipa) - set(kept))} — outside Kokoro's "
-                  f"phoneme vocabulary; storing {kept!r}", file=sys.stderr)
-        entries[args.add.lower()] = {"ipa": kept,
-                                     **({"because": args.because} if args.because else {})}
-        save_lexicon(entries)
-        print(f"'{args.add}' -> {kept}  ({lexicon_path()})")
+
+        existing = next((e for e in entries
+                         if e.get("term", "").lower() == args.add.lower() and _same_scope(e, args)),
+                        None)
+        ipa = args.ipa[0] if args.ipa else (existing or {}).get("ipa")
+        if ipa:
+            from kokoro_onnx.tokenizer import Tokenizer
+            kept = Tokenizer().known(ipa)
+            if kept != ipa:
+                print(f"warning: dropped {sorted(set(ipa) - set(kept))} — outside Kokoro's "
+                      f"phoneme vocabulary; storing {kept!r}", file=sys.stderr)
+            ipa = kept
+
+        # `say` defaults to the term itself, which is the honest default rather
+        # than a placeholder: it means "no text rewrite needed", which is exactly
+        # right when the other engines already say the word correctly and only
+        # Kokoro's G2P is wrong. demo-video REQUIRES the field, so it is never
+        # omitted — an entry without it fails that tool's loader for every demo.
+        say = args.say or (existing or {}).get("say") or args.add
+        entry = {"term": args.add, "say": say,
+                 **({"ipa": ipa} if ipa else {}),
+                 **_scope_of(args),
+                 **({"because": args.because} if args.because
+                    else ({"because": existing["because"]} if existing and existing.get("because")
+                          else {}))}
+        if existing is not None:
+            entries[entries.index(existing)] = entry
+        else:
+            entries.append(entry)
+        save_glossary(entries)
+        print(f"'{args.add}' -> say {say!r}" + (f", ipa {ipa}" if ipa else ", no ipa (respelling only)")
+              + f"  ({_describe_scope(entry)})")
+        print(f"  {glossary_path()}")
         return
 
     if args.audition:
@@ -427,21 +583,19 @@ def cmd_pronounce(args):
         out_dir = Path(args.out_dir).expanduser()
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # The espeak guess renders too, as the control. Judging a candidate
-        # without the thing it is meant to replace in the same ear is guesswork.
+        # espeak's own guess renders too, as the control. Judging a candidate
+        # without the thing it replaces in the same ear is guesswork.
         print(f"auditioning '{args.audition}' in {label}:", file=sys.stderr)
         rows = [("espeak-default", None)] + [(f"cand{i}", c) for i, c in enumerate(args.ipa, 1)]
         for name, ipa in rows:
             if ipa is None:
-                ph = tok.phonemize(sentence, lang)
-                shown = "(espeak's own guess)"
+                ph, shown = tok.phonemize(sentence, lang), "(espeak's own guess)"
             else:
                 kept = tok.known(ipa)
-                pattern = re.compile(r"\b" + re.escape(args.audition) + r"\b", re.IGNORECASE)
+                pat = re.compile(r"(?<!\w)" + re.escape(args.audition) + r"(?!\w)", re.IGNORECASE)
                 parts = [kept if i % 2 else tok.phonemize(f, lang)
-                         for i, f in enumerate(pattern.split(sentence)) if f.strip()]
-                ph = re.sub(r"\s+", " ", " ".join(parts)).strip()
-                shown = kept
+                         for i, f in enumerate(pat.split(sentence)) if f.strip()]
+                ph, shown = re.sub(r"\s+", " ", " ".join(parts)).strip(), kept
             samples, sr = kokoro.create(ph, voice=voice, lang=lang, is_phonemes=True)
             path = out_dir / f"{args.audition.lower()}-{name}.wav"
             sf.write(str(path), samples, sr)
@@ -454,27 +608,40 @@ def cmd_pronounce(args):
     if args.test:
         from kokoro_onnx.tokenizer import Tokenizer
         lang = args.lang or "en-us"
+        resolved = resolve_glossary(load_glossary(), args.host or [], args.context or [])
+        overrides = pronunciation_map(resolved)
         raw = Tokenizer().phonemize(args.test, lang)
-        fixed, applied = apply_lexicon(args.test, lang, entries)
-        print(f"without lexicon: {raw}")
+        fixed, applied = apply_lexicon(args.test, lang, overrides)
+        print(f"scope:           {_describe_scope({'when': {'hosts': args.host or [], 'contexts': args.context or []}})}")
+        print(f"without ipa:     {raw}")
         if fixed is None:
-            print("with lexicon:    (no entry matched — identical)")
+            print("with ipa:        (no entry matched — identical)")
         else:
-            print(f"with lexicon:    {fixed}")
+            print(f"with ipa:        {fixed}")
             print(f"applied:         {sorted(set(applied))}")
         return
 
     # Default: list.
     if not entries:
-        print(f"(no entries) — {lexicon_path()}")
+        print(f"(no entries) — {glossary_path()}")
         print("\nAdd one:  kokoro pronounce --add Kokoro --ipa 'kˈoʊkoɹoʊ'")
-        print("Compare:  kokoro pronounce --audition Kokoro --ipa 'kˈoʊkoɹoʊ' --ipa 'koʊkˈoɹoʊ'")
         return
-    w = max(len(k) for k in entries)
-    for term, entry in sorted(entries.items()):
-        because = f"   # {entry['because']}" if entry.get("because") else ""
-        print(f"{term.ljust(w)}  {entry['ipa']}{because}")
-    print(f"\n{lexicon_path()}")
+    resolved_ids = {id(e) for e in resolve_glossary(entries, args.host or [], args.context or [])}
+    w = max(len(e.get("term", "")) for e in entries)
+    print(f" {'term'.ljust(w)}  {'say'.ljust(18)} {'ipa'.ljust(16)} scope")
+    for e in entries:
+        term = e.get("term", "")
+        # A bare `pronounce` is unscoped, so scoped entries legitimately show as
+        # inactive; that is information, not a warning.
+        mark = " " if id(e) in resolved_ids else "·"
+        print(f"{mark}{term.ljust(w)}  {str(e.get('say','')).ljust(18)} "
+              f"{str(e.get('ipa','') or '—').ljust(16)} {_describe_scope(e)}")
+        if e.get("because"):
+            print(f"{' ' * (w + 3)}# {e['because']}")
+    print(f"\n{glossary_path()}")
+    print("· = not active at this scope. Pass --host/--context to see what applies there.")
+    print("say = every engine (Chatterbox too).  ipa = Kokoro only, exact.")
+
 
 
 def cmd_langs(args):
@@ -505,7 +672,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="synthesise as overlapping windows so prosody runs across "
                         "joins — costs ~1.4x, worth it on long paragraphs")
     t.add_argument("--no-lexicon", action="store_true",
-                   help="ignore the pronunciation lexicon for this render")
+                   help="ignore glossary pronunciations for this render")
+    t.add_argument("--host", action="append", default=None,
+                   help="scope glossary lookups to this host (repeatable)")
+    t.add_argument("--context", action="append", default=None,
+                   help="scope glossary lookups to this named context (repeatable)")
     t.add_argument("--timings", default=None,
                    help="also write phoneme timings as JSON to this path")
     t.set_defaults(func=cmd_tts)
@@ -520,6 +691,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="IPA phonemes; repeat to supply --audition candidates")
     pr.add_argument("--because", default=None, help="note why, for the next reader")
     pr.add_argument("--remove", default=None, help="term to delete")
+    pr.add_argument("--say", default=None,
+                    help="respelling every engine reads; defaults to the term itself")
+    pr.add_argument("--host", action="append", default=None, help="scope to a host (repeatable)")
+    pr.add_argument("--context", action="append", default=None,
+                    help="scope to a named context (repeatable)")
     pr.add_argument("--test", default=None, help="show the phonemes a sentence would produce")
     pr.add_argument("--audition", default=None,
                     help="render each --ipa candidate for this term, plus the espeak control")
