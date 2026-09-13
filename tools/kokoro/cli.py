@@ -583,6 +583,24 @@ def cmd_pronounce(args):
         out_dir = Path(args.out_dir).expanduser()
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # Clear this term's previous audition before writing a new one. A second
+        # run with FEWER candidates leaves the extra files from the first sitting
+        # in the directory, and they are indistinguishable from fresh output --
+        # caught live on 2026-09-13, when a stale cand4 from an earlier batch with
+        # different stress was auditioned as if it belonged to the new set and
+        # judged wrong, because it was. Deleting by exact name, never a glob of
+        # the directory, so nothing else in out_dir is ever at risk.
+        stale = [out_dir / f"{args.audition.lower()}-espeak-default.wav"]
+        stale += [out_dir / f"{args.audition.lower()}-cand{i}.wav" for i in range(1, 100)]
+        removed = 0
+        for f in stale:
+            if f.is_file():
+                f.unlink()
+                removed += 1
+        if removed:
+            print(f"cleared {removed} file(s) from a previous audition of "
+                  f"'{args.audition}'", file=sys.stderr)
+
         # espeak's own guess renders too, as the control. Judging a candidate
         # without the thing it replaces in the same ear is guesswork.
         print(f"auditioning '{args.audition}' in {label}:", file=sys.stderr)
