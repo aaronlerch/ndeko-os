@@ -66,6 +66,17 @@ LANG_BY_PREFIX = {
 GRADES = {"af_heart": "A", "af_bella": "A-", "bf_emma": "B-"}
 DEFAULT_VOICE = "af_heart"
 
+# Kokoro's G2P is espeak-ng, which guesses at anything not in its dictionary and
+# is confidently wrong about names it has not seen. It mispronounces this very
+# model: "Kokoro" comes out kəkˈɔːɹoʊ ("kuh-KOR-oh"). There is no inline escape — espeak's own [[phoneme]] syntax is
+# mangled by the phonemizer wrapper before espeak ever sees it (verified
+# 2026-09-13), so the ONLY precise lever is to phonemize the text here and hand
+# the model phonemes with is_phonemes=True.
+#
+# The lexicon lives in the DATA tree, not here. That is a privacy boundary, not
+# a preference: the words worth fixing are employer, customer and product names,
+# and this repo must stay free of those.
+
 
 def fail(msg: str, code: int = 1):
     print(f"error: {msg}", file=sys.stderr)
@@ -93,6 +104,68 @@ def default_voice() -> str:
         return name or DEFAULT_VOICE
     except OSError:
         return DEFAULT_VOICE
+
+
+def lexicon_path() -> Path:
+    return _data_root() / "voice-profiles" / "kokoro-lexicon.json"
+
+
+def load_lexicon() -> dict[str, dict]:
+    f = lexicon_path()
+    try:
+        data = json.loads(f.read_text())
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as e:
+        # A corrupt lexicon must not silently revert every word to the espeak
+        # guess — that is the failure this whole file exists to stop.
+        fail(f"lexicon at {f} is unreadable: {e}")
+    return {k.lower(): v for k, v in (data.get("entries") or {}).items()}
+
+
+def save_lexicon(entries: dict[str, dict]):
+    f = lexicon_path()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps({"version": 1, "entries": entries}, indent=2, ensure_ascii=False) + "\n")
+
+
+def apply_lexicon(text: str, lang: str, entries: dict[str, dict]) -> tuple[str | None, list[str]]:
+    """Phonemize `text`, substituting lexicon IPA for the terms it covers.
+
+    Returns (phoneme_string, applied_terms). The phoneme string is None when no
+    term matched, which is the signal to skip phoneme mode entirely and let
+    kokoro-onnx phonemize normally — the cheaper and better-tested path.
+    """
+    if not entries:
+        return None, []
+    from kokoro_onnx.tokenizer import Tokenizer
+
+    # Longest term first, so a two-word term wins over its first word alone.
+    terms = sorted(entries, key=len, reverse=True)
+    pattern = re.compile(r"\b(" + "|".join(re.escape(t) for t in terms) + r")\b", re.IGNORECASE)
+    if not pattern.search(text):
+        return None, []
+
+    tok = Tokenizer()
+    pieces: list[str] = []
+    applied: list[str] = []
+    for i, frag in enumerate(pattern.split(text)):
+        if not frag:
+            continue
+        if i % 2:  # capture group — a lexicon term
+            ipa = entries[frag.lower()]["ipa"]
+            kept = tok.known(ipa)
+            if kept != ipa:
+                print(f"warning: dropped {sorted(set(ipa) - set(kept))} from '{frag}' — "
+                      f"outside Kokoro's phoneme vocabulary", file=sys.stderr)
+            pieces.append(kept)
+            applied.append(frag)
+        elif frag.strip():
+            pieces.append(tok.phonemize(frag, lang))
+        elif pieces:
+            pieces.append(" ")
+    # Collapse the seams: fragments were phonemized apart, so spacing is ours.
+    return re.sub(r"\s+", " ", " ".join(pieces)).strip(), applied
 
 
 def model_paths() -> tuple[Path, Path]:
@@ -224,19 +297,30 @@ def cmd_tts(args):
         continuous=args.continuous,
     )
 
+    entries = {} if args.no_lexicon else load_lexicon()
+    all_applied: list[str] = []
+
     tracks: list[np.ndarray] = []
     timings: list[dict] = []
     offset = 0.0
     sr = 24000
     for seg_text, pause_after in split_pauses(text):
+        # Phoneme mode only when the lexicon actually covers something in this
+        # segment; otherwise let kokoro-onnx phonemize, which is the path its own
+        # normalisation and tests assume.
+        phonemes, applied = apply_lexicon(seg_text, lang, entries)
+        seg_kwargs = dict(kwargs, is_phonemes=phonemes is not None)
+        render_text = phonemes if phonemes is not None else seg_text
+        all_applied.extend(applied)
+
         if args.timings:
-            samples, sr, segment_timings = kokoro.create_timed(seg_text, **kwargs)
+            samples, sr, segment_timings = kokoro.create_timed(render_text, **seg_kwargs)
             for t in segment_timings:
                 timings.append({"phoneme": t.phoneme,
                                 "start": round(t.start + offset, 4),
                                 "end": round(t.end + offset, 4)})
         else:
-            samples, sr = kokoro.create(seg_text, **kwargs)
+            samples, sr = kokoro.create(render_text, **seg_kwargs)
         tracks.append(samples)
         offset += len(samples) / sr
         if pause_after > 0:
@@ -248,6 +332,9 @@ def cmd_tts(args):
     sf.write(str(out_path), combined, sr)
 
     duration = len(combined) / sr
+    if all_applied:
+        print(f"kokoro: pronunciation lexicon applied to {sorted(set(all_applied))}",
+              file=sys.stderr)
     print(f"kokoro: {duration:.2f}s of audio -> {out_path}", file=sys.stderr)
 
     if args.timings:
@@ -292,6 +379,104 @@ def cmd_voices(args):
         print("Blend two into a third:  --voice 'af_heart:0.6,bf_emma:0.4'")
 
 
+def cmd_pronounce(args):
+    entries = load_lexicon()
+
+    if args.remove:
+        key = args.remove.lower()
+        if key not in entries:
+            fail(f"no lexicon entry for '{args.remove}'")
+        del entries[key]
+        save_lexicon(entries)
+        print(f"removed '{args.remove}' from {lexicon_path()}")
+        return
+
+    if args.add:
+        if not args.ipa:
+            fail("--add needs --ipa, e.g. --add Kokoro --ipa 'kˈoʊkoɹoʊ'\n"
+                 "       Audition candidates first: kokoro pronounce --audition Kokoro "
+                 "--ipa '...' --ipa '...'")
+        if len(args.ipa) > 1:
+            fail(f"--add takes one --ipa, got {len(args.ipa)}. Use --audition to compare, "
+                 f"then --add the winner.")
+        from kokoro_onnx.tokenizer import Tokenizer
+        ipa = args.ipa[0]
+        kept = Tokenizer().known(ipa)
+        if kept != ipa:
+            print(f"warning: dropped {sorted(set(ipa) - set(kept))} — outside Kokoro's "
+                  f"phoneme vocabulary; storing {kept!r}", file=sys.stderr)
+        entries[args.add.lower()] = {"ipa": kept,
+                                     **({"because": args.because} if args.because else {})}
+        save_lexicon(entries)
+        print(f"'{args.add}' -> {kept}  ({lexicon_path()})")
+        return
+
+    if args.audition:
+        if not args.ipa:
+            fail("--audition needs at least one --ipa candidate")
+        import soundfile as sf
+        from kokoro_onnx import Kokoro
+        from kokoro_onnx.tokenizer import Tokenizer
+        onnx, voices_bin = model_paths()
+        kokoro = Kokoro(str(onnx), str(voices_bin))
+        tok = Tokenizer()
+        voice_spec = args.voice or default_voice()
+        voice, label = parse_voice_spec(voice_spec, kokoro)
+        lang = args.lang or lang_for_voice(voice_spec.split(",")[0].split(":")[0])
+        sentence = args.sentence or f"{args.audition}. Say hello to {args.audition}."
+        out_dir = Path(args.out_dir).expanduser()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # The espeak guess renders too, as the control. Judging a candidate
+        # without the thing it is meant to replace in the same ear is guesswork.
+        print(f"auditioning '{args.audition}' in {label}:", file=sys.stderr)
+        rows = [("espeak-default", None)] + [(f"cand{i}", c) for i, c in enumerate(args.ipa, 1)]
+        for name, ipa in rows:
+            if ipa is None:
+                ph = tok.phonemize(sentence, lang)
+                shown = "(espeak's own guess)"
+            else:
+                kept = tok.known(ipa)
+                pattern = re.compile(r"\b" + re.escape(args.audition) + r"\b", re.IGNORECASE)
+                parts = [kept if i % 2 else tok.phonemize(f, lang)
+                         for i, f in enumerate(pattern.split(sentence)) if f.strip()]
+                ph = re.sub(r"\s+", " ", " ".join(parts)).strip()
+                shown = kept
+            samples, sr = kokoro.create(ph, voice=voice, lang=lang, is_phonemes=True)
+            path = out_dir / f"{args.audition.lower()}-{name}.wav"
+            sf.write(str(path), samples, sr)
+            print(f"  {name:15} {shown}")
+            print(f"    afplay {path}")
+        print(f"\nPick one, then: kokoro pronounce --add {args.audition} --ipa '<winner>'",
+              file=sys.stderr)
+        return
+
+    if args.test:
+        from kokoro_onnx.tokenizer import Tokenizer
+        lang = args.lang or "en-us"
+        raw = Tokenizer().phonemize(args.test, lang)
+        fixed, applied = apply_lexicon(args.test, lang, entries)
+        print(f"without lexicon: {raw}")
+        if fixed is None:
+            print("with lexicon:    (no entry matched — identical)")
+        else:
+            print(f"with lexicon:    {fixed}")
+            print(f"applied:         {sorted(set(applied))}")
+        return
+
+    # Default: list.
+    if not entries:
+        print(f"(no entries) — {lexicon_path()}")
+        print("\nAdd one:  kokoro pronounce --add Kokoro --ipa 'kˈoʊkoɹoʊ'")
+        print("Compare:  kokoro pronounce --audition Kokoro --ipa 'kˈoʊkoɹoʊ' --ipa 'koʊkˈoɹoʊ'")
+        return
+    w = max(len(k) for k in entries)
+    for term, entry in sorted(entries.items()):
+        because = f"   # {entry['because']}" if entry.get("because") else ""
+        print(f"{term.ljust(w)}  {entry['ipa']}{because}")
+    print(f"\n{lexicon_path()}")
+
+
 def cmd_langs(args):
     print(f"{'code'.ljust(7)} {'prefix'.ljust(7)} language")
     for prefix, (code, language) in sorted(LANG_BY_PREFIX.items(), key=lambda kv: kv[1][0]):
@@ -319,6 +504,8 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--continuous", action="store_true",
                    help="synthesise as overlapping windows so prosody runs across "
                         "joins — costs ~1.4x, worth it on long paragraphs")
+    t.add_argument("--no-lexicon", action="store_true",
+                   help="ignore the pronunciation lexicon for this render")
     t.add_argument("--timings", default=None,
                    help="also write phoneme timings as JSON to this path")
     t.set_defaults(func=cmd_tts)
@@ -326,6 +513,21 @@ def build_parser() -> argparse.ArgumentParser:
     v = sub.add_parser("voices", help="List available voices")
     v.add_argument("--lang", default=None, help="filter by language code or prefix letter")
     v.set_defaults(func=cmd_voices)
+
+    pr = sub.add_parser("pronounce", help="Teach Kokoro how to say a word")
+    pr.add_argument("--add", default=None, help="term to add or overwrite")
+    pr.add_argument("--ipa", action="append", default=None,
+                    help="IPA phonemes; repeat to supply --audition candidates")
+    pr.add_argument("--because", default=None, help="note why, for the next reader")
+    pr.add_argument("--remove", default=None, help="term to delete")
+    pr.add_argument("--test", default=None, help="show the phonemes a sentence would produce")
+    pr.add_argument("--audition", default=None,
+                    help="render each --ipa candidate for this term, plus the espeak control")
+    pr.add_argument("--sentence", default=None, help="sentence to use for --audition")
+    pr.add_argument("--voice", default=None, help="voice for --audition")
+    pr.add_argument("--lang", default=None, help="language code")
+    pr.add_argument("--out-dir", default="/tmp/kokoro-pronounce", help="where --audition writes")
+    pr.set_defaults(func=cmd_pronounce)
 
     sub.add_parser("langs", help="List language codes").set_defaults(func=cmd_langs)
     return p

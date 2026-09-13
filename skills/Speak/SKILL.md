@@ -106,6 +106,48 @@ These are different from `--sentence-pause` / `--clause-pause`, which lengthen t
 model's own natural gaps at punctuation across the whole clip. Use the flags to
 change pacing, `[pause:N]` to place one specific beat.
 
+## Pronunciation
+
+Kokoro's G2P is espeak-ng, which guesses at anything outside its dictionary and is
+confidently wrong about product and company names. It mispronounces this very model:
+`Kokoro` → `kəkˈɔːɹoʊ`, "kuh-KOR-oh".
+
+**There is no inline escape.** espeak's own `[[phonemes]]` syntax is mangled by the
+phonemizer wrapper before espeak sees it — verified 2026-09-13, it reads the brackets
+aloud as letters. Respelling the word ("Dijibul") fixes the consonants but not the
+stress. The only precise lever is a phoneme override, which the CLI keeps in a lexicon.
+
+```bash
+kokoro pronounce                                    # list what is corrected
+kokoro pronounce --audition <word> --ipa '…' --ipa '…'   # render candidates + control
+kokoro pronounce --add <word> --ipa '…' --because '…'    # keep the winner
+kokoro pronounce --test "a whole sentence"          # phonemes before/after, no audio
+kokoro pronounce --remove <word>
+```
+
+**`--audition` before `--add`, every time.** The right IPA cannot be reasoned out —
+it has to be heard. Audition renders each candidate *plus espeak's own guess as a
+control*, in the voice that will ship, so the comparison is in one ear. `--test` is
+the fast half of the loop: phonemes only, no render.
+
+The lexicon applies automatically to every `tts` call, including the ones demo-video
+makes, and reports on stderr which terms it touched. `--no-lexicon` bypasses it.
+
+**The lexicon lives in the data tree** (`${NDEKO_DATA_DIR}/voice-profiles/kokoro-lexicon.json`),
+not in this repo, and that is a privacy boundary rather than a filing preference: the
+words worth correcting are employer, customer and product names.
+
+Two things to know:
+
+- **A no-op entry is worse than no entry.** espeak already says plenty of acronyms
+  correctly. `--test` proves whether an entry changes anything; if the two lines match,
+  delete it.
+- **demo-video's glossary is a separate, earlier layer.** It rewrites text
+  (`Todo` → `too doo`) before any synthesiser sees it, so it works for Chatterbox too.
+  If a word is respelled there, the Kokoro lexicon will no longer match the original
+  spelling. Use the glossary for words both engines get wrong, the lexicon for precise
+  Kokoro stress control.
+
 ## Notes
 
 - First run on a fresh machine triggers `setup.sh`: a ~150MB venv plus 350MB of
