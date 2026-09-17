@@ -1,0 +1,867 @@
+<title>REPLACE — Feature Name Debrief</title>
+
+<!--
+  DEBRIEF REVIEW PAGE — template for the `debrief` skill.
+
+  Three things you change; everything below the RUNTIME marker stays as-is.
+    1. <title>, the command-bar name, the scope line, the gate strip.
+    2. Sections 1-8, written as ordinary HTML inside the <section> blocks.
+    3. Every actionable row wrapped as <div class="item" data-id="..." ...>.
+       The script finds them, injects the controls, and wires the store.
+       §3 is two groups: "Needs your call" (WARN / LOCK rows) first, then
+       every other decision inside <details class="fold"> — the script
+       finds items inside the fold the same way, so the tally counts them.
+
+  data-id      stable key, never renumbered across republishes:
+               d1.. decisions | f1.. deferred/drifted | o1.. open items
+               c1.. conformance | r1.. risks | t1.. retro edits
+  data-kind    "decision" (Keep/Change/Discuss) or "action"
+               (Do now/Queue/Drop/Discuss). Default "action".
+  data-glyph   OK | WARN | BAD | DEFER | LOCK | UNKNOWN | DECISION | NOTE
+               — the script renders the severity chip and the edge stripe.
+  data-answer  the row is a question back to the reader; its note box
+               opens expanded. data-prompt overrides the placeholder.
+
+  Publish with capabilities: {db: {}} and read the responses back with
+  read_db on collection "responses" plus doc "meta/submission".
+  Load the artifact-capabilities skill for the current runtime contract
+  before changing any claude.use() code.
+  Written against runtime contract 0.2.46.
+-->
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
+
+<style>
+  :root {
+    --ground:   #e9ecef;
+    --surface:  #ffffff;
+    --surface-2:#f3f5f7;
+    --ink:      #171a1f;
+    --ink-2:    #525a64;
+    --ink-3:    #7b838d;
+    --rule:     #d3d8de;
+    --rule-2:   #e4e8ec;
+    --accent:   #2f4a8c;
+    --accent-2: #dfe5f4;
+    --on-accent:#ffffff;
+    --ok:       #1a7a4c;
+    --warn:     #94650a;
+    --bad:      #b03227;
+    --defer:    #6b4fb8;
+    --unknown:  #626d79;
+    --shadow:   0 1px 2px rgba(16,22,34,.06), 0 8px 24px -12px rgba(16,22,34,.18);
+    --radius:   6px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #101318;
+      --surface:  #191d24;
+      --surface-2:#20252d;
+      --ink:      #e7eaee;
+      --ink-2:    #a3acb7;
+      --ink-3:    #78828e;
+      --rule:     #2e343d;
+      --rule-2:   #262b33;
+      --accent:   #8ba4e0;
+      --accent-2: #232c44;
+      --on-accent:#0e1219;
+      --ok:       #56b884;
+      --warn:     #d6a53c;
+      --bad:      #e8756a;
+      --defer:    #a893e8;
+      --unknown:  #98a3ae;
+      --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:   #101318;
+    --surface:  #191d24;
+    --surface-2:#20252d;
+    --ink:      #e7eaee;
+    --ink-2:    #a3acb7;
+    --ink-3:    #78828e;
+    --rule:     #2e343d;
+    --rule-2:   #262b33;
+    --accent:   #8ba4e0;
+    --accent-2: #232c44;
+    --on-accent:#0e1219;
+    --ok:       #56b884;
+    --warn:     #d6a53c;
+    --bad:      #e8756a;
+    --defer:    #a893e8;
+    --unknown:  #98a3ae;
+    --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ——— command bar ——— */
+  .bar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface);
+    border-bottom: 1px solid var(--rule);
+  }
+  .bar-inner {
+    max-width: 1180px; margin: 0 auto;
+    padding-inline: 20px; padding-block: 10px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .bar-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 240px; }
+  .bar-id strong { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+  .scope {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; color: var(--ink-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bar-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .progress { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+  .meter { width: 84px; height: 5px; border-radius: 3px; background: var(--rule-2); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s ease; }
+  .count { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+
+  button { font: inherit; cursor: pointer; }
+  .btn {
+    border: 1px solid var(--rule); background: var(--surface); color: var(--ink);
+    border-radius: var(--radius); padding: 6px 12px; font-size: 13px; font-weight: 500;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn-primary {
+    background: var(--accent); border-color: var(--accent);
+    color: var(--on-accent); font-weight: 600;
+  }
+  .btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  /* ——— shell ——— */
+  .shell {
+    max-width: 1180px; margin: 0 auto;
+    padding-inline: 20px; padding-block: 28px 96px;
+    display: grid; grid-template-columns: 186px minmax(0, 1fr); gap: 36px;
+    align-items: start;
+  }
+  nav.toc { position: sticky; top: 68px; display: flex; flex-direction: column; gap: 1px; }
+  nav.toc a {
+    display: flex; align-items: baseline; gap: 9px;
+    padding: 5px 8px; border-radius: 5px;
+    color: var(--ink-2); text-decoration: none; font-size: 13px; line-height: 1.3;
+  }
+  nav.toc a:hover { background: var(--surface-2); color: var(--ink); }
+  nav.toc a.on { background: var(--accent-2); color: var(--ink); font-weight: 600; }
+  nav.toc .n {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    color: var(--ink-3); font-weight: 500;
+  }
+  nav.toc a.on .n { color: var(--accent); }
+  nav.toc .pend {
+    margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    color: var(--warn); font-weight: 600; white-space: nowrap;
+  }
+
+  main { min-width: 0; }
+
+  /* ——— sections ——— */
+  section { margin-bottom: 40px; scroll-margin-top: 76px; }
+  .sec-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 6px; }
+  .sec-head .n {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600;
+    color: var(--accent);
+  }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+  h2 { font-size: 19px; font-weight: 600; letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+  h3 { font-size: 14px; font-weight: 600; margin: 22px 0 8px; letter-spacing: -.005em; }
+  .lede { color: var(--ink-2); font-size: 13.5px; margin: 0 0 18px; max-width: 64ch; }
+
+  .prose { font-family: "IBM Plex Serif", Georgia, serif; font-size: 16px; line-height: 1.68; max-width: 66ch; }
+  .prose p { margin: 0 0 14px; }
+  .prose strong { font-weight: 500; }
+  .prose ul, .prose ol { padding-left: 22px; margin: 0 0 14px; }
+  .prose li { margin-bottom: 5px; }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .88em; }
+  code { background: var(--surface-2); border: 1px solid var(--rule-2); border-radius: 4px; padding: 1px 5px; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+
+  /* ——— gate strip ——— */
+  .gates { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 20px; }
+  .gate {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--unknown);
+    border-radius: var(--radius); padding: 7px 12px; font-size: 12.5px;
+  }
+  .gate .lbl { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-2); }
+  .gate .val { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--unknown); }
+  .gate[data-s="ok"]        { border-left-color: var(--ok); }
+  .gate[data-s="ok"]   .val { color: var(--ok); }
+  .gate[data-s="bad"]       { border-left-color: var(--bad); }
+  .gate[data-s="bad"]  .val { color: var(--bad); }
+  .gate[data-s="warn"]      { border-left-color: var(--warn); }
+  .gate[data-s="warn"] .val { color: var(--warn); }
+
+  /* ——— actionable item ——— */
+  .item {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--unknown);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .item[data-glyph="OK"]       { border-left-color: var(--ok); }
+  .item[data-glyph="WARN"]     { border-left-color: var(--warn); }
+  .item[data-glyph="BAD"]      { border-left-color: var(--bad); }
+  .item[data-glyph="LOCK"]     { border-left-color: var(--bad); }
+  .item[data-glyph="DEFER"]    { border-left-color: var(--defer); }
+  .item[data-glyph="DECISION"] { border-left-color: var(--accent); }
+  .item[data-glyph="NOTE"]     { border-left-color: var(--accent); }
+
+  .item-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 6px; flex-wrap: wrap; }
+  .chip {
+    flex: none; display: inline-flex; align-items: center;
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase;
+    border: 1px solid currentColor; border-radius: 3px; padding: 1px 5px;
+    color: var(--unknown);
+  }
+  .item[data-glyph="OK"]       .chip { color: var(--ok); }
+  .item[data-glyph="WARN"]     .chip { color: var(--warn); }
+  .item[data-glyph="BAD"]      .chip { color: var(--bad); }
+  .item[data-glyph="LOCK"]     .chip { color: var(--bad); }
+  .item[data-glyph="DEFER"]    .chip { color: var(--defer); }
+  .item[data-glyph="DECISION"] .chip { color: var(--accent); }
+  .item[data-glyph="NOTE"]     .chip { color: var(--accent); }
+  .item-id {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    color: var(--ink-3); margin-left: auto; flex: none;
+  }
+  .item-title { font-weight: 600; font-size: 14.5px; letter-spacing: -.005em; }
+  .item-body { color: var(--ink-2); font-size: 13.5px; }
+  .item-body p { margin: 0 0 8px; }
+  .item-body p:last-child { margin-bottom: 0; }
+  .item-body dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 14px; margin: 8px 0 0; }
+  .item-body dt {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-3); font-weight: 600; padding-top: 3px;
+  }
+  .item-body dd { margin: 0; }
+
+  /* ——— the folded "ratify by default" group in §3 ——— */
+  details.fold { margin-top: 18px; border-top: 1px solid var(--rule); padding-top: 10px; }
+  details.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary h3 { margin: 0; display: inline; }
+  details.fold > summary h3::before { content: "\25B8"; display: inline-block; width: 1em; color: var(--ink-3); }
+  details.fold[open] > summary h3::before { content: "\25BE"; }
+  .fold-hint { font-size: 12.5px; color: var(--ink-3); }
+  details.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  /* ——— a reply written back into a row on a later pass ——— */
+  .reply {
+    margin-top: 11px; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--accent-2); color: var(--ink); font-size: 13.5px;
+  }
+  .reply b {
+    display: block; margin-bottom: 3px;
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--accent);
+  }
+  .reply p { margin: 0 0 8px; }
+  .reply p:last-child { margin-bottom: 0; }
+
+  /* ——— controls, injected by the script ——— */
+  .ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+  .seg button {
+    border: 0; background: var(--surface); color: var(--ink-2);
+    padding: 5px 11px; font-size: 12.5px; font-weight: 500;
+    border-right: 1px solid var(--rule);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button:hover { background: var(--surface-2); color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .note-toggle {
+    border: 0; background: none; color: var(--accent);
+    font-size: 12.5px; font-weight: 500; padding: 5px 2px;
+  }
+  .note-toggle:hover { text-decoration: underline; }
+  .note-wrap { margin-top: 10px; }
+  textarea {
+    width: 100%; font: inherit; font-size: 13.5px; line-height: 1.5;
+    color: var(--ink); background: var(--surface-2);
+    border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 9px 11px; resize: vertical; min-height: 68px;
+  }
+  textarea::placeholder { color: var(--ink-3); }
+  .saved {
+    font-size: 11px; font-family: "IBM Plex Mono", monospace; color: var(--ok);
+    margin-left: auto; opacity: 0; transition: opacity .2s;
+  }
+  .saved.on { opacity: 1; }
+
+  /* ——— submit ——— */
+  .submit-card {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  }
+  .submit-card h3 { margin-top: 0; }
+  .submit-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .banner {
+    display: none; align-items: flex-start; gap: 10px;
+    border-radius: var(--radius); padding: 11px 14px; font-size: 13.5px;
+    margin-bottom: 16px; border: 1px solid var(--rule); background: var(--surface);
+  }
+  .banner.on { display: flex; }
+  .banner.ok   { border-left: 3px solid var(--ok); }
+  .banner.warn { border-left: 3px solid var(--warn); }
+  .banner b { font-weight: 600; }
+
+  body.filter-on .item:not(.pending) { display: none; }
+  body.filter-on .prose,
+  body.filter-on .tablewrap,
+  body.filter-on .gates { opacity: .3; }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    nav.toc {
+      position: static; flex-direction: row; overflow-x: auto;
+      gap: 4px; margin-bottom: 24px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--rule);
+    }
+    nav.toc a { white-space: nowrap; }
+    nav.toc .pend { margin-left: 4px; }
+    nav.toc .label { display: none; }
+    nav.toc a.on .label { display: inline; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="bar">
+  <div class="bar-inner">
+    <div class="bar-id">
+      <strong id="build-name">REPLACE — Feature Name</strong>
+      <span class="scope" id="scope">REPLACE — origin/main...HEAD &middot; 00 files &middot; 0000-00-00</span>
+    </div>
+    <div class="bar-tools">
+      <span class="progress">
+        <span class="meter"><i id="meter"></i></span>
+        <span class="count"><b id="done">0</b>/<b id="total">0</b></span>
+        <span>dispositioned</span>
+      </span>
+      <button class="btn" id="filter" type="button" aria-pressed="false">Open only</button>
+      <button class="btn btn-primary" id="submit" type="button">Submit responses</button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="toc" id="toc" aria-label="Sections"></nav>
+
+  <main>
+    <div class="banner warn" id="nodb">
+      <span aria-hidden="true">&#9888;</span>
+      <span><b>Responses can&rsquo;t save from this view.</b> Disposition everything as normal,
+      then use <b>Copy responses</b> at the bottom and paste the block into the session.</span>
+    </div>
+    <div class="banner ok" id="sent">
+      <span aria-hidden="true">&#10003;</span>
+      <span><b>Submitted</b> <span id="sentwhen"></span>. Tell Ndeko to pick them up.
+      Anything you change after this needs another submit.</span>
+    </div>
+
+    <section id="s1">
+      <div class="sec-head"><span class="n">01</span><h1>What this is</h1></div>
+      <p class="lede">Plain English. No implementation language at all.</p>
+      <div class="prose">
+        <p>REPLACE — what can a person do now that they could not do before, and why that
+        matters. Name the user: an end user, an internal operator, a background job.</p>
+      </div>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="n">02</span><h2>How it works</h2></div>
+      <p class="lede">One real run, end to end &mdash; then the files, for the reader who wants to go look.</p>
+      <div class="prose">
+        <p>REPLACE — the walk-through: what triggers it, what happens in what order, where
+        data lands, what the person sees, what happens on failure.</p>
+      </div>
+      <h3>Where it lives</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody><tr><td><code>REPLACE</code></td><td>REPLACE</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="n">03</span><h2>Decisions made</h2></div>
+      <p class="lede">REPLACE — N in total, because every unspecified choice is recorded.
+      <b>N need your call</b> and sit first. The other N are conventional and cheap to reverse;
+      they are folded below and <b>Keep</b> is the default reading. <b>Change</b> sends one back.</p>
+
+      <h3>Needs your call</h3>
+      <div class="item" data-id="d1" data-kind="decision" data-glyph="LOCK">
+        <div class="item-head"><span class="item-title">REPLACE — the decision, one line</span></div>
+        <div class="item-body">
+          <dl>
+            <dt>Chose</dt><dd>REPLACE</dd>
+            <dt>Not</dt><dd>REPLACE</dd>
+            <dt>Why</dt><dd>REPLACE</dd>
+            <dt>Reversibility</dt><dd>one-way</dd>
+          </dl>
+        </div>
+      </div>
+
+      <details class="fold">
+        <summary><h3>Ratify by default (REPLACE — N)</h3><span class="fold-hint">Open to disposition individually.</span></summary>
+        <div class="item" data-id="d2" data-kind="decision" data-glyph="DECISION">
+          <div class="item-head"><span class="item-title">REPLACE — the decision, one line</span></div>
+          <div class="item-body">
+            <dl>
+              <dt>Chose</dt><dd>REPLACE</dd>
+              <dt>Not</dt><dd>REPLACE</dd>
+              <dt>Why</dt><dd>REPLACE</dd>
+              <dt>Reversibility</dt><dd>cheap</dd>
+            </dl>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section id="s4">
+      <div class="sec-head"><span class="n">04</span><h2>Deferred &amp; drifted</h2></div>
+      <p class="lede"><b>Deferred</b> was decided and carries a trigger. <b>Drifted</b> was found
+      by the scan &mdash; not decided, just done.</p>
+
+      <div class="item" data-id="f1" data-glyph="DEFER">
+        <div class="item-head"><span class="item-title">REPLACE</span></div>
+        <div class="item-body">
+          <dl><dt>Trigger</dt><dd>REPLACE — the scale, customer, feature or date that makes it necessary</dd></dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="s5">
+      <div class="sec-head"><span class="n">05</span><h2>Open items</h2></div>
+      <p class="lede">Questions back to you. Answer in the box; the disposition says what to
+      do with the answer.</p>
+
+      <div class="item" data-id="o1" data-glyph="LOCK" data-answer data-prompt="Your call…">
+        <div class="item-head"><span class="item-title">REPLACE — the question</span></div>
+        <div class="item-body">
+          <dl>
+            <dt>Blocked</dt><dd>REPLACE — what waits on this</dd>
+            <dt>Blocks pilot</dt><dd>REPLACE</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="s6">
+      <div class="sec-head"><span class="n">06</span><h2>Conformance</h2></div>
+      <p class="lede">Gated results are step 1&rsquo;s exit status, reported as fact. Ungated
+      invariants required reading &mdash; only the ones that applied to this diff.</p>
+
+      <div class="gates">
+        <div class="gate" data-s="ok"><span class="lbl">typecheck</span><span class="val">pass</span></div>
+        <div class="gate" data-s="ok"><span class="lbl">lint</span><span class="val">pass</span></div>
+        <div class="gate" data-s="ok"><span class="lbl">validate:contracts</span><span class="val">22/22</span></div>
+        <div class="gate"><span class="lbl">test</span><span class="val">not run</span></div>
+      </div>
+
+      <h3>Ungated invariants</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Invariant</th><th>What the diff does</th><th>Rule lives</th></tr></thead>
+          <tbody><tr><td>REPLACE</td><td>REPLACE</td><td><code>REPLACE</code></td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="item" data-id="c1" data-glyph="WARN">
+        <div class="item-head"><span class="item-title">REPLACE — the finding</span></div>
+        <div class="item-body">
+          <dl><dt>Verdict</dt><dd>REPLACE — say which is wrong, the code or the doc</dd></dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="s7">
+      <div class="sec-head"><span class="n">07</span><h2>What you&rsquo;d have to know to ask</h2></div>
+      <p class="lede">Blast radius, data risk, tenancy exposure, cost and load, surprises,
+      false assumptions. &ldquo;None&rdquo; is an answer.</p>
+
+      <div class="item" data-id="r1" data-glyph="WARN">
+        <div class="item-head"><span class="item-title">REPLACE</span></div>
+        <div class="item-body"><p>REPLACE</p></div>
+      </div>
+    </section>
+
+    <section id="s8">
+      <div class="sec-head"><span class="n">08</span><h2>What the repo should learn</h2></div>
+      <p class="lede">Only where something concrete went wrong in <b>this</b> build. Naming the
+      right bucket matters more than producing an artifact.</p>
+
+      <div class="item" data-id="t1" data-glyph="NOTE">
+        <div class="item-head"><span class="item-title">REPLACE</span></div>
+        <div class="item-body">
+          <dl>
+            <dt>Bucket</dt><dd>REPLACE — doc now wrong / rule placed wrong / prose that should be a gate</dd>
+            <dt>File</dt><dd><code>REPLACE</code> &sect; REPLACE</dd>
+            <dt>Edit</dt><dd>REPLACE — the specific edit, not &ldquo;should be updated&rdquo;</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="s9">
+      <div class="sec-head"><span class="n">&#8212;</span><h2>Anything else</h2></div>
+      <div class="submit-card">
+        <h3>Questions, corrections, or direction for the next pass</h3>
+        <textarea id="general" placeholder="Free text. Anything the sections above had no row for."></textarea>
+        <div class="submit-row">
+          <button class="btn btn-primary" id="submit2" type="button">Submit responses</button>
+          <button class="btn" id="copy" type="button">Copy responses</button>
+          <span class="saved" id="gsaved">saved</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ————————————————————————— RUNTIME ————————————————————————— -->
+<script>
+(() => {
+  "use strict";
+
+  const OPTIONS = {
+    action:   ["Do now", "Queue", "Drop", "Discuss"],
+    decision: ["Keep", "Change", "Discuss"],
+  };
+  const CHIP = {
+    OK: "holds", WARN: "caveat", BAD: "violated", DEFER: "deferred",
+    LOCK: "one-way", UNKNOWN: "unverified", DECISION: "decision", NOTE: "retro",
+  };
+
+  const items = [...document.querySelectorAll(".item")];
+  const state = new Map();
+  let db = null;
+
+  const $ = (id) => document.getElementById(id);
+  const debounce = (fn, ms) => {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  };
+
+  function flash(el) {
+    if (!el) return;
+    el.classList.add("on");
+    setTimeout(() => el.classList.remove("on"), 1400);
+  }
+
+  function offline() {
+    db = null;
+    $("nodb").classList.add("on");
+  }
+
+  // The namespace resolves late, and may never resolve.
+  async function connect() {
+    for (let i = 0; i < 40 && !window.claude?.use; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    if (!window.claude?.use) return null;
+    try { return await window.claude.use("db"); } catch { return null; }
+  }
+
+  function body(id) {
+    const rec = state.get(id);
+    return {
+      id,
+      disposition: rec.disposition || "",
+      note: rec.note || "",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async function save(id) {
+    if (!db) return;
+    try {
+      await db.doc("responses/" + id).set(body(id));
+      flash(state.get(id).savedEl);
+    } catch (e) {
+      if (e && (e.code === "revoked" || e.code === "not_granted")) offline();
+    }
+  }
+  const saveSoon = debounce(save, 700);
+
+  // ——— build the control strip on every actionable row ———
+  items.forEach((el) => {
+    const id = el.dataset.id;
+    const kind = el.dataset.kind === "decision" ? "decision" : "action";
+    const glyph = el.dataset.glyph || "UNKNOWN";
+    const rec = { disposition: "", note: "" };
+    state.set(id, rec);
+
+    const head = el.querySelector(".item-head");
+    if (head) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = CHIP[glyph] || glyph.toLowerCase();
+      head.prepend(chip);
+      const tag = document.createElement("span");
+      tag.className = "item-id";
+      tag.textContent = id;
+      head.append(tag);
+    }
+
+    const ctl = document.createElement("div");
+    ctl.className = "ctl";
+
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.setAttribute("role", "group");
+    seg.setAttribute("aria-label", "Disposition for " + id);
+    OPTIONS[kind].forEach((label) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.id = "disp-" + id + "-" + label.toLowerCase().replace(/\s+/g, "-");
+      b.textContent = label;
+      b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => {
+        rec.disposition = rec.disposition === label ? "" : label;
+        paint(id);
+        tally();
+        save(id);
+      });
+      seg.append(b);
+    });
+    ctl.append(seg);
+
+    const wants = el.hasAttribute("data-answer");
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "note-toggle";
+    toggle.textContent = wants ? "Answer" : "Add a note or question";
+    ctl.append(toggle);
+
+    const saved = document.createElement("span");
+    saved.className = "saved";
+    saved.textContent = "saved";
+    ctl.append(saved);
+    rec.savedEl = saved;
+
+    const wrap = document.createElement("div");
+    wrap.className = "note-wrap";
+    wrap.hidden = !wants;
+    const ta = document.createElement("textarea");
+    ta.id = "note-" + id;
+    ta.placeholder = el.dataset.prompt
+      || (wants ? "Your answer…" : "A note, a correction, or a question back…");
+    ta.addEventListener("input", () => {
+      rec.note = ta.value;
+      tally();
+      saveSoon(id);
+    });
+    wrap.append(ta);
+    toggle.addEventListener("click", () => {
+      wrap.hidden = !wrap.hidden;
+      if (!wrap.hidden) ta.focus();
+    });
+
+    el.append(ctl, wrap);
+    rec.els = { seg, ta, wrap };
+  });
+
+  function paint(id) {
+    const rec = state.get(id);
+    [...rec.els.seg.children].forEach((c) =>
+      c.setAttribute("aria-pressed", String(Boolean(rec.disposition) && c.textContent === rec.disposition)));
+  }
+
+  // ——— section nav + progress ———
+  const sections = [...document.querySelectorAll("main section")];
+  const toc = $("toc");
+  sections.forEach((s) => {
+    const h = s.querySelector("h1, h2");
+    const n = s.querySelector(".sec-head .n");
+    const a = document.createElement("a");
+    a.href = "#" + s.id;
+    const num = document.createElement("span");
+    num.className = "n";
+    num.textContent = n ? n.textContent : "";
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = h ? h.textContent : s.id;
+    const pend = document.createElement("span");
+    pend.className = "pend";
+    pend.dataset.for = s.id;
+    a.append(num, label, pend);
+    toc.append(a);
+  });
+
+  function tally() {
+    let done = 0;
+    items.forEach((el) => {
+      const rec = state.get(el.dataset.id);
+      const open = !(rec.disposition || (rec.note || "").trim());
+      el.classList.toggle("pending", open);
+      if (!open) done++;
+    });
+    $("done").textContent = done;
+    $("total").textContent = items.length;
+    $("meter").style.width = (items.length ? (done / items.length) * 100 : 0) + "%";
+    sections.forEach((s) => {
+      const open = s.querySelectorAll(".item.pending").length;
+      const badge = toc.querySelector('[data-for="' + s.id + '"]');
+      if (badge) badge.textContent = open ? open + " open" : "";
+    });
+  }
+  tally();
+
+  const seen = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      toc.querySelectorAll("a").forEach((a) =>
+        a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id));
+    });
+  }, { rootMargin: "-72px 0px -70% 0px" });
+  sections.forEach((s) => seen.observe(s));
+
+  // ——— filter ———
+  const filter = $("filter");
+  filter.addEventListener("click", () => {
+    const on = filter.getAttribute("aria-pressed") !== "true";
+    filter.setAttribute("aria-pressed", String(on));
+    document.body.classList.toggle("filter-on", on);
+    filter.textContent = on ? "Show all" : "Open only";
+  });
+
+  // ——— general notes ———
+  const general = $("general");
+  async function saveGeneral() {
+    if (!db) return;
+    try {
+      await db.doc("responses/_general").set({
+        id: "_general", disposition: "", note: general.value,
+        updatedAt: new Date().toISOString(),
+      });
+      flash($("gsaved"));
+    } catch { offline(); }
+  }
+  general.addEventListener("input", debounce(saveGeneral, 700));
+
+  // ——— clipboard fallback ———
+  function transcript() {
+    const out = ["# Debrief responses", ""];
+    items.forEach((el) => {
+      const id = el.dataset.id;
+      const rec = state.get(id);
+      if (!rec.disposition && !(rec.note || "").trim()) return;
+      const title = el.querySelector(".item-title");
+      out.push("## " + id + " — " + (title ? title.textContent.trim() : ""));
+      if (rec.disposition) out.push("**" + rec.disposition + "**");
+      if ((rec.note || "").trim()) out.push("", rec.note.trim());
+      out.push("");
+    });
+    if (general.value.trim()) out.push("## Anything else", "", general.value.trim(), "");
+    if (out.length === 2) out.push("_Nothing dispositioned._");
+    return out.join("\n");
+  }
+
+  $("copy").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    try {
+      await navigator.clipboard.writeText(transcript());
+      btn.textContent = "Copied";
+    } catch {
+      btn.textContent = "Copy blocked — select the page instead";
+    }
+    setTimeout(() => { btn.textContent = "Copy responses"; }, 2200);
+  });
+
+  // ——— submit ———
+  async function submit(btn) {
+    if (!db) { $("copy").click(); return; }
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Submitting…";
+    try {
+      for (const [id, r] of state) {
+        if (r.disposition || (r.note || "").trim()) await save(id);
+      }
+      if (general.value.trim()) await saveGeneral();
+      const counts = {};
+      state.forEach((r) => {
+        if (r.disposition) counts[r.disposition] = (counts[r.disposition] || 0) + 1;
+      });
+      const submittedAt = new Date().toISOString();
+      await db.doc("meta/submission").set({
+        submittedAt,
+        totalItems: items.length,
+        dispositioned: [...state.values()].filter((r) => r.disposition).length,
+        counts,
+      });
+      $("sentwhen").textContent = "at " + new Date(submittedAt).toLocaleString();
+      $("sent").classList.add("on");
+      $("sent").scrollIntoView({ block: "center", behavior: "smooth" });
+      btn.textContent = "Submitted";
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
+    } catch {
+      offline();
+      btn.textContent = "Couldn’t submit — use Copy responses";
+      btn.disabled = false;
+    }
+  }
+  $("submit").addEventListener("click", (e) => submit(e.currentTarget));
+  $("submit2").addEventListener("click", (e) => submit(e.currentTarget));
+
+  // ——— rehydrate ———
+  connect().then(async (conn) => {
+    if (!conn) { offline(); return; }
+    db = conn;
+    try {
+      const snap = await db.collection("responses").get();
+      (snap.docs || []).forEach((d) => {
+        const data = d.data() || {};
+        if (d.id === "_general") { general.value = data.note || ""; return; }
+        const rec = state.get(d.id);
+        if (!rec) return;
+        rec.disposition = data.disposition || "";
+        rec.note = data.note || "";
+        if (rec.note) { rec.els.ta.value = rec.note; rec.els.wrap.hidden = false; }
+        paint(d.id);
+      });
+      const sub = await db.doc("meta/submission").get();
+      if (sub.exists) {
+        const s = sub.data() || {};
+        if (s.submittedAt) {
+          $("sentwhen").textContent = "at " + new Date(s.submittedAt).toLocaleString();
+          $("sent").classList.add("on");
+        }
+      }
+      tally();
+    } catch { offline(); }
+  });
+})();
+</script>
