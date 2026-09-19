@@ -9,8 +9,15 @@
  *   bun run demo:record <name> --assemble-only
  *   bun run demo:record <name> --renarrate
  *   bun run demo:record <name> --narrate-only
+ *   bun run demo:record <name> --dry-run
  *   bun run demo:record <name> --out /tmp/demos
  *   bun run demo:record <name> --engine interceptor
+ *
+ * `--dry-run` walks every action against the live app with no narration, no
+ * tape and no holds — about a minute for a three-minute demo — and stops on
+ * the first target that cannot be resolved, naming the segment, the action and
+ * what Playwright matched, with a PNG of the failing screen. Run it until it
+ * is clean, then record. Combine with `--reset` when the walk writes.
  *
  * A take that names a `session` records under a browser session captured by
  * `bun run demo:login` — that is how a demo walks a site behind a sign-in.
@@ -40,6 +47,7 @@ import {
   loadGlossary,
   resolve as resolveGlossary,
 } from "./lib/glossary";
+import { missingSlots, slotsOf } from "./lib/lint";
 import {
   checkInterceptor,
   checkStack,
@@ -48,7 +56,7 @@ import {
   runReset,
 } from "./lib/preflight";
 import type { TakeRecording } from "./lib/record";
-import { recordTake } from "./lib/record";
+import { DRY_RUN_WAIT_CAP_S, dryRunTake, recordTake } from "./lib/record";
 import { describeExpiry, loadSession } from "./lib/session";
 import {
   DEFAULTS,
@@ -134,7 +142,7 @@ if (
 const target = process.argv[2];
 if (!target || target.startsWith("--")) {
   die(
-    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--renarrate] [--narrate-only] [--out dir] [--engine playwright|interceptor]`,
+    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--dry-run] [--renarrate] [--narrate-only] [--out dir] [--engine playwright|interceptor]`,
   );
 }
 
@@ -186,6 +194,97 @@ if (has("reset")) {
   if (flagsGiven.length === 1 && flagsGiven[0] === "--reset") process.exit(0);
 }
 
+const timingsPath = join(outDir, "timings.json");
+const only = flag("take") ? Number.parseInt(flag("take") as string, 10) : null;
+
+// ── dry run ─────────────────────────────────────────────────────────────────
+// Everything a recording would do to the app, and nothing it would do to the
+// disk: no clips, no tape, no holds. The point is to find the target that does
+// not resolve BEFORE the narrated take that would have died on it. Placed
+// before the tooling check on purpose — ffmpeg is a requirement of assembly,
+// not of finding out whether `button=/^Next$/` is ambiguous.
+if (has("dry-run")) {
+  const baseUrl = sb.baseUrl ?? DEFAULTS.baseUrl;
+  console.log("\ndry run — no narration, no video, no holds");
+  console.log(
+    `  waits over ${DRY_RUN_WAIT_CAP_S}s are clipped to ${DRY_RUN_WAIT_CAP_S}s; awaits run in full`,
+  );
+
+  // Slot lint first: the one failure class that needs no browser at all.
+  if (REPO) {
+    const missing = await missingSlots(sb, REPO).catch(() => []);
+    if (missing.length > 0) {
+      const list = missing.map((s) => `      ${s}`).join("\n");
+      console.log(
+        `\n  ! ${missing.length} data-slot(s) named by this storyboard appear nowhere under apps/ or packages/:\n${list}\n    A renamed or removed slot fails the walk on its first use. Fix these before running it.`,
+      );
+    } else {
+      const n = slotsOf(sb).length;
+      if (n > 0)
+        console.log(`  slots    ${n} data-slot(s) all present in source`);
+    }
+  }
+
+  // Cached clip lengths, if a previous run left them: they let the report say
+  // which segments' actions outrun their narration, which is the one timing
+  // fact a dry run can offer without synthesising a word.
+  const cached: Timing[] = existsSync(timingsPath)
+    ? JSON.parse(await readFile(timingsPath, "utf8"))
+    : [];
+  const clip = new Map(cached.map((t) => [t.id, t.seconds]));
+  const pad = sb.pad ?? DEFAULTS.pad;
+
+  await checkStack(baseUrl).catch((e: Error) => die(e.message));
+
+  for (const [i, take] of sb.takes.entries()) {
+    const n = i + 1;
+    if (only !== null && only !== n) continue;
+    console.log(
+      `\ntake ${n}/${sb.takes.length}${take.profile ? `  profile: ${take.profile}` : ""}`,
+    );
+    const session = take.session
+      ? await loadSession(take.session).catch((e: Error) => die(e.message))
+      : null;
+    if (take.preflight?.length) {
+      console.log("  preflight");
+      await runChecks(take.preflight, baseUrl).catch((e: Error) =>
+        die(e.message),
+      );
+    }
+    const report = await dryRunTake(sb, take, outDir, session?.state).catch(
+      (e: Error) => die(`dry run failed at ${e.message}`),
+    );
+
+    // Actions that take longer than the clip they play under are not a
+    // failure — the walk holds until they finish — but the audience hears
+    // silence for the difference. Name the segments so the author can decide
+    // whether to split the beat or accept the pause.
+    const silent = report.segments.filter(
+      (s) => clip.has(s.id) && s.actionSeconds > (clip.get(s.id) ?? 0) + pad,
+    );
+    console.log(
+      `  walked ${report.segments.length} segment(s) in ${report.total.toFixed(0)}s`,
+    );
+    if (silent.length > 0) {
+      console.log(
+        "  segments whose actions outlast their narration (silence follows the clip):",
+      );
+      for (const s of silent) {
+        const c = clip.get(s.id) ?? 0;
+        console.log(
+          `    ${s.id}  actions ${s.actionSeconds.toFixed(1)}s  clip ${c.toFixed(1)}s  → ~${(s.actionSeconds - c - pad).toFixed(1)}s of silence`,
+        );
+      }
+    } else if (cached.length > 0) {
+      console.log("  every segment's actions finish inside its narration");
+    }
+  }
+  console.log(
+    `\n✓ dry run clean — every target resolved.\n  record it:  ${PRODUCT.cmd.record} ${sb.name}${has("reset") ? " --reset" : ""}\n`,
+  );
+  process.exit(0);
+}
+
 // ── tooling ─────────────────────────────────────────────────────────────────
 const tooling = await checkTooling();
 if (!tooling.ok) {
@@ -193,7 +292,6 @@ if (!tooling.ok) {
 }
 
 // ── narration ───────────────────────────────────────────────────────────────
-const timingsPath = join(outDir, "timings.json");
 let timings: Timing[];
 
 // Scope for the machine's pronunciation glossary: hosts come from the
@@ -252,22 +350,25 @@ if (has("assemble-only") && existsSync(timingsPath)) {
 // voice, so the later full run reuses every clip that was approved here.
 if (has("narrate-only")) {
   const total = timings.reduce((sum, t) => sum + t.seconds, 0);
-  console.log(`\nnarration only — no walk, no video`);
+  console.log("\nnarration only — no walk, no video");
   for (const t of timings) {
     const said = t.spoken ? `  [${t.spoken}]` : "";
     console.log(`  ${t.id}  ${t.seconds.toFixed(1)}s  ${t.file}${said}`);
   }
   console.log(`\n  ${timings.length} clip(s), ${total.toFixed(1)}s total`);
-  console.log(`\nhear it in order:`);
+  console.log("\nhear it in order:");
   console.log(`  ${timings.map((t) => `afplay ${t.file}`).join(" && ")}`);
-  console.log(`\nfix a word:   ${PRODUCT.cmd.glossary} --add <term> --say "<how it sounds>"`);
-  console.log(`re-render:    ${PRODUCT.cmd.record} <storyboard> --narrate-only`);
+  console.log(
+    `\nfix a word:   ${PRODUCT.cmd.glossary} --add <term> --say "<how it sounds>"`,
+  );
+  console.log(
+    `re-render:    ${PRODUCT.cmd.record} <storyboard> --narrate-only`,
+  );
   console.log(`then record:  ${PRODUCT.cmd.record} <storyboard>`);
   process.exit(0);
 }
 
 // ── takes ───────────────────────────────────────────────────────────────────
-const only = flag("take") ? Number.parseInt(flag("take") as string, 10) : null;
 const marksPath = (i: number) => join(outDir, `marks-${i + 1}.json`);
 
 if (!has("assemble-only") && !has("renarrate")) {

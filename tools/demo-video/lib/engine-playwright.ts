@@ -35,7 +35,9 @@ export class PlaywrightEngine implements Engine {
     const context = await browser.newContext({
       viewport: opts.viewport,
       deviceScaleFactor: 1,
-      recordVideo: { dir: opts.videoDir, size: opts.viewport },
+      ...(opts.record === false
+        ? {}
+        : { recordVideo: { dir: opts.videoDir, size: opts.viewport } }),
       // Animations are part of the product. `reduce` would flatten the very
       // celebration screens a demo exists to show.
       reducedMotion: "no-preference",
@@ -94,6 +96,11 @@ export class PlaywrightEngine implements Engine {
     await this.context?.close().catch(() => {});
     await this.browser?.close().catch(() => {});
     return { videoPath: videoPath ?? undefined };
+  }
+
+  async snapshot(path: string): Promise<void> {
+    if (!this.page) throw new Error("engine not started");
+    await this.page.screenshot({ path });
   }
 }
 
