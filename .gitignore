@@ -38,12 +38,22 @@ plugins/cache/
 plugins/data/
 plugins/marketplaces/
 plugins/*.json
+# The server-side skill and plugin sync cache. Keyed by an account/org bucket
+# (`<uuid>_<uuid>/`), refilled by the harness on every sync, and holding
+# org-library content that belongs to the org rather than to this repo. A
+# blanket `git add -A` swept 222 of these files into the index on 2026-09-18,
+# which is how they were found.
+plugins/synced/
+skills/synced/
 shell-snapshots/
 statsig/
 todos/
 history.jsonl
 remote-settings.json
 policy-limits.json
+# Sibling of the above. `policy-limits.json` was ignored; this stamp was not,
+# and it carries an org identity hash -- data-shaped, so it stays local.
+policy-limits.json.stamp.json
 stats-cache.json
 settings.local.json
 mcp-needs-auth-cache.json
