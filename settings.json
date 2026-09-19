@@ -10,6 +10,7 @@
     "CLAUDE_CODE_OTEL_DIAG_STDERR": "1",
     "BASH_DEFAULT_TIMEOUT_MS": "600000",
     "API_TIMEOUT_MS": "1800000",
+    "CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION": "1000",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "includeCoAuthoredBy": false,
@@ -86,7 +87,7 @@
     "defaultMode": "auto",
     "additionalDirectories": []
   },
-  "model": "opus[1m]",
+  "model": "opus",
   "skillOverrides": {
     "ApertureOscillation": "user-invocable-only",
     "ISA": "user-invocable-only",
