@@ -303,7 +303,7 @@
   "effortLevel": "high",
   "promptSuggestionEnabled": false,
   "askUserQuestionTimeout": "never",
-  "plansDirectory": "Plans/",
+  "plansDirectory": "plans/",
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
