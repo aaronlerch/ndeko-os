@@ -63,21 +63,28 @@ Render the audio, play it, fix what is wrong, and only then drive the browser.
 demo-video record <storyboard> --narrate-only    # clips + timings, no browser
 ```
 
-Then, for each clip in order, **actually play it** — `afplay <file>`; the runner
-prints a ready-made chain. Then ask for a verdict and hold there. This is the one
-part of the pipeline that cannot be checked by any tool: pronunciation has to be
-heard by the person whose product is being named.
+Then hand the clips over to be heard. **Playback is offered and waits for a yes.**
+`afplay` seizes the speakers of the machine a person is sitting at, and a demo is
+usually recorded while its owner is in the middle of something else — a minute of
+unrequested voiceover is an interruption, not a deliverable. The offer comes first
+every time, including for a single re-rendered clip. This is also the one part of
+the pipeline that cannot be checked by any tool: pronunciation has to be heard by
+the person whose product is being named.
 
 Loop until they approve:
 
 1. `--narrate-only` renders and reports each clip's file, duration, and the text
    actually spoken.
-2. Play the clips and ask. Name the terms at risk — product, company and customer
-   names are where the synthesiser guesses — rather than asking "does this sound
-   OK" and hoping.
-3. Take each correction into the **glossary**, never into the storyboard (see
-   below), then re-run `--narrate-only` and replay only what changed.
-4. On approval, run `demo-video record <storyboard>` with **no `--out` override**
+2. **Offer, then wait.** Show the script — every clip's line with its length — say
+   the total run time, and name the terms at risk: product, company and customer
+   names are where the synthesiser guesses. Ask whether to play it now. The runner
+   prints a ready-made `afplay` chain; hand that over as the alternative so they
+   can listen on their own clock, in their own player. Approving on the written
+   script alone is their call to make.
+3. **Play what they agreed to**, in order, then ask for a verdict and hold there.
+4. Take each correction into the **glossary**, never into the storyboard (see
+   below), then re-run `--narrate-only` and offer the changed clips the same way.
+5. On approval, run `demo-video record <storyboard>` with **no `--out` override**
    that differs from the narrate-only run.
 
 **The loop is close to free, and the reason is the cache.** Clips are keyed on a
