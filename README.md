@@ -214,7 +214,7 @@ One agent: **`Forge`**. A cross-vendor reviewer running on OpenAI lineage via th
 
 | Tool | Purpose |
 |---|---|
-| `ndeko.ts` | **The launcher.** Runs a session against this tree (or `ndeko remote-control …`) and strips `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` before spawn. Refuses to pass `--bare` at all. |
+| `ndeko.ts` | **The launcher.** Runs a session against this tree — or `ndeko rc`, Remote Control with worktree spawning, `auto` permissions, and a `<host>-<repo>` session-name prefix — and strips `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` before spawn. Refuses to pass `--bare` at all. |
 | `privacy-scan.ts` | The publish gate. `--staged` for the pre-commit hook, `--all` for a pre-release audit. |
 | `PathGate.ts` | The build gate for the path invariant. A script rather than a grep, because a naive `rg` flags comments and prose — and a gate with a high false-positive rate is a gate people route around. |
 | `agents-md.ts` | Regenerates `AGENTS.md` from the doctrine sources. |

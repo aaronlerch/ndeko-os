@@ -41,11 +41,12 @@
  *   --config-dir | --flags   pick a mode (above)
  *   -n | --dry-run           print the composed argv and exit
  *   -D <name>...             local dev channel — see runDevChannels
+ *   rc [flags...]            Remote Control with house defaults — see expandRc
  */
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { homedir, hostname } from "node:os";
+import { basename, dirname, join } from "node:path";
 import {
   algorithmFile,
   describeRoots,
@@ -273,7 +274,60 @@ function parseArgs(argv: string[]): Options {
   return opts;
 }
 
+/** Lowercase, and collapse anything outside [a-z0-9] to single hyphens. */
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * The repository's name, stable across its worktrees: the parent of the shared
+ * git dir, so a session inside `.claude/worktrees/agent-x` still reports the
+ * main checkout's name. Outside git, the current directory's name.
+ */
+function repoName(): string {
+  const r = Bun.spawnSync(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const commonDir = r.exitCode === 0 ? r.stdout.toString().trim() : "";
+  return basename(commonDir ? dirname(commonDir) : process.cwd());
+}
+
+/**
+ * `ndeko rc` → `claude remote-control` with house defaults. Each default yields
+ * to the same flag given explicitly.
+ *
+ *   --spawn worktree       one writer per tree, for web-started sessions too
+ *   --permission-mode auto a web session never parks on a prompt you answer from a phone
+ *   name prefix host-repo  the claude.ai list tells machines and repos apart;
+ *                          CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX also wins
+ *
+ * `-c` and `--session-id` resume a server's sessions and cannot be combined with
+ * `--spawn`, so the spawn default steps aside for them.
+ */
+function expandRc(rest: string[]): string[] {
+  const has = (...names: string[]) => rest.some((a) => names.some((n) => a === n || a.startsWith(`${n}=`)));
+  const out = ["remote-control"];
+  if (!has("--spawn", "-c", "--continue", "--session-id")) out.push("--spawn", "worktree");
+  if (!has("--permission-mode")) out.push("--permission-mode", "auto");
+  if (!has("--remote-control-session-name-prefix") && !process.env.CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX) {
+    out.push("--remote-control-session-name-prefix", `${slug(hostname().split(".")[0] ?? "")}-${slug(repoName())}`);
+  }
+  return [...out, ...rest];
+}
+
 function buildArgs(opts: Options, devTagged: string[]): string[] {
+  if (opts.passthrough[0] === "rc") {
+    // Remote Control refuses to start when a global flag precedes the verb,
+    // rather than silently dropping it for the sessions it starts.
+    if (opts.mode === "flags") fail("ndeko rc: --flags mode adds global flags Remote Control refuses; use the default mode");
+    if (devTagged.length) fail("ndeko rc: -D adds a global flag Remote Control refuses");
+    return expandRc(opts.passthrough.slice(1));
+  }
+
   const args: string[] = [];
 
   // No --append-system-prompt-file: system-prompt.md is the `ndeko` output style
