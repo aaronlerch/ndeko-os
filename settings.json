@@ -299,7 +299,9 @@
     "command": "$HOME/.claude/tools/statusline.sh",
     "refreshInterval": 5
   },
-  "enabledPlugins": {},
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
+  },
   "effortLevel": "high",
   "outputStyle": "ndeko",
   "promptSuggestionEnabled": false,
@@ -321,7 +323,7 @@
   "teammateMode": "auto",
   "remoteControlAtStartup": false,
   "isolatePeerMachines": true,
-  "crossSessionInbound": "hold",
+  "crossSessionInbound": "accept",
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": false,
   "autoMode": {
