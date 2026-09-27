@@ -7,7 +7,7 @@ named in each section heading; edit those. This artifact exists so the doctrine 
 readable by agent tools that do not load Claude Code's config — the second-vendor
 arm this system already depends on, and any harness it might have to move to.
 
-<!-- ndeko:sources-digest 44ffda063c57a2bb -->
+<!-- ndeko:sources-digest c973e617647653f0 -->
 
 ---
 
@@ -243,7 +243,7 @@ pacts are unloaded rather than improvising them.
 
 # ndeko
 
-Constitutional rules, the response format, verification doctrine, security protocol, and the billing constraint all live in the system prompt (`~/.claude/system-prompt.md`, loaded via `--append-system-prompt-file`). **When this file and the system prompt disagree, the system prompt wins.**
+Constitutional rules, the response format, verification doctrine, security protocol, and the billing constraint all live in the system prompt (`~/.claude/system-prompt.md`, loaded as the `ndeko` output style: `output-styles/ndeko.md` links to it and `settings.json` selects it, so every session gets it, including ones Remote Control starts). **When this file and the system prompt disagree, the system prompt wins.**
 
 This file is the routing table. Everything below is on-demand lookup.
 

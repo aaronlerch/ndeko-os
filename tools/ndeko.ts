@@ -33,7 +33,10 @@
  * FLAGS OF ITS OWN
  *
  *   Everything not listed here is forwarded to `claude` verbatim, so claude's
- *   own flags (-w/--worktree, --tmux, -r/--resume, -c) just work.
+ *   own flags (-w/--worktree, --tmux, -r/--resume, -c) just work — and so does a
+ *   subcommand: `ndeko remote-control --spawn worktree` starts Remote Control
+ *   with the billing carriers stripped, and the sessions it starts get the
+ *   doctrine from the output style.
  *
  *   --config-dir | --flags   pick a mode (above)
  *   -n | --dry-run           print the composed argv and exit
@@ -272,11 +275,12 @@ function parseArgs(argv: string[]): Options {
 
 function buildArgs(opts: Options, devTagged: string[]): string[] {
   const args: string[] = [];
-  const sp = systemPromptFile();
 
-  // The system prompt always needs an explicit flag — it is a file the harness
-  // does not load by convention in either mode.
-  if (existsSync(sp)) args.push("--append-system-prompt-file", sp);
+  // No --append-system-prompt-file: system-prompt.md is the `ndeko` output style
+  // (output-styles/ndeko.md links to it; settings.json selects it), so every
+  // session loads it by convention. The flag route could not reach sessions that
+  // `claude remote-control` starts — it refuses to launch rather than drop the
+  // flag (verified 2.1.283, 2026-09-26) — and keeping both would load it twice.
 
   if (opts.mode === "flags") {
     // `--setting-sources ''` isolates the session from user/project/local
@@ -294,6 +298,18 @@ function buildArgs(opts: Options, devTagged: string[]): string[] {
   return args;
 }
 
+/** The style file Claude Code reads; a symlink to system-prompt.md. */
+const outputStyleFile = () => join(harnessRoot(), "output-styles", "ndeko.md");
+
+/** Whether the harness settings select the ndeko style. Unparseable reads as no. */
+function outputStyleSelected(): boolean {
+  try {
+    return JSON.parse(readFileSync(settingsFile(), "utf8")).outputStyle === "ndeko";
+  } catch {
+    return false;
+  }
+}
+
 /** Report anything that would make this session weaker than the real install. */
 function preflight(): string[] {
   const notes: string[] = [];
@@ -301,6 +317,8 @@ function preflight(): string[] {
 
   if (!roots.dataExists) notes.push(`data root missing: ${roots.dataRoot} — identity and memory will be empty`);
   if (!existsSync(systemPromptFile())) notes.push("system-prompt.md not written — session runs without ndeko doctrine");
+  if (!existsSync(outputStyleFile())) notes.push("output-styles/ndeko.md missing — session runs without ndeko doctrine");
+  else if (!outputStyleSelected()) notes.push('settings.json does not set "outputStyle": "ndeko" — session runs without ndeko doctrine');
   if (!existsSync(settingsFile())) notes.push("settings.json not written — harness defaults apply");
   if (!algorithmFile()) notes.push("algorithm doctrine unresolved — algorithm/LATEST missing or points at a missing file");
 

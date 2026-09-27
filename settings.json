@@ -301,6 +301,7 @@
   },
   "enabledPlugins": {},
   "effortLevel": "high",
+  "outputStyle": "ndeko",
   "promptSuggestionEnabled": false,
   "askUserQuestionTimeout": "never",
   "plansDirectory": "plans/",

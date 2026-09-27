@@ -56,7 +56,7 @@ User: "I trimmed my rules, check if anything's still redundant"
 - Claude's built-in system prompt changes across versions — what was "default behavior" 3 months ago may not be now. When in doubt, test rather than assume.
 - Rules that seem redundant with defaults may have been added because Claude was inconsistent about following the default. Check failure history before cutting.
 - "One-off fix" rules sometimes prevent recurring failures. Check if the failure pattern is truly gone before removing.
-- **Read the always-loaded set from the live config, never from memory of it.** `loadAtStartup` and `postCompactRestore` were both `null` as of 2026-09-11 — a gotcha here previously asserted they must be kept in sync, describing a configuration this harness no longer runs. What is actually always-loaded is `~/.claude/system-prompt.md` (via `--append-system-prompt-file`), `~/.claude/CLAUDE.md`, and everything `CLAUDE.md` `@`-imports. Confirm that against the file each time; a stale answer here mis-scopes the whole audit.
+- **Read the always-loaded set from the live config, never from memory of it.** `loadAtStartup` and `postCompactRestore` were both `null` as of 2026-09-11 — a gotcha here previously asserted they must be kept in sync, describing a configuration this harness no longer runs. What is actually always-loaded is `~/.claude/system-prompt.md` (as the `ndeko` output style, selected by `outputStyle` in `settings.json`), `~/.claude/CLAUDE.md`, and everything `CLAUDE.md` `@`-imports. Confirm that against the file each time; a stale answer here mis-scopes the whole audit.
 
 ## The Five Questions
 

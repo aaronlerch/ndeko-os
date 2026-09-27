@@ -96,6 +96,14 @@ function inlineImports(content: string, baseDir: string, alreadyIncluded: Set<st
     .join("\n");
 }
 
+/**
+ * Drop a leading YAML frontmatter block. `system-prompt.md` carries one because
+ * it doubles as the `ndeko` output style; the portable artifact wants the prose.
+ */
+function stripFrontmatter(content: string): string {
+  return content.replace(/^---\n[\s\S]*?\n---\n/, "");
+}
+
 function digestOf(srcs: Source[]): string {
   const h = createHash("sha256");
   for (const s of srcs) {
@@ -128,7 +136,7 @@ function render(): string {
 
   for (const s of srcs) {
     if (!existsSync(s.path)) continue;
-    const body = inlineImports(readFileSync(s.path, "utf8").trim(), dirname(s.path), included);
+    const body = inlineImports(stripFrontmatter(readFileSync(s.path, "utf8")).trim(), dirname(s.path), included);
     parts.push(`## From \`${s.label}\``, "", `> ${s.note}`, "", body, "", "---", "");
   }
 

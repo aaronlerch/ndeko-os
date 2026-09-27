@@ -158,7 +158,7 @@ The exemption covers structural and credential patterns only — those describe 
 
 | File | Role |
 |---|---|
-| `system-prompt.md` | **Constitutional rules.** Loaded via `--append-system-prompt-file`. Five rules outrank everything: verification, analysis-means-read-only, billing path, security protocol, privacy boundary. Also carries the single output format. |
+| `system-prompt.md` | **Constitutional rules.** Loaded as the `ndeko` output style — `output-styles/ndeko.md` links to it, `settings.json` selects it — so sessions Remote Control starts carry it too. `/context` does not count output-style text under System prompt; that is expected. Five rules outrank everything: verification, analysis-means-read-only, billing path, security protocol, privacy boundary. Also carries the single output format. |
 | `CLAUDE.md` | **The routing table.** Auto-loaded by Claude Code. Deliberately thin — a lookup index plus operational rules, each one a tool contract or a dated verified gotcha. |
 | `assistant.md` | **Voice and personality.** `@`-imported by `CLAUDE.md`. Method only — the standing pacts are disclosures about the principal and live in the data tree. Includes a standing constraint that this voice stay *different* from his, because a mirrored voice shares his blind spots and makes anything drafted in his name untraceable. |
 | `algorithm/LATEST` → `algorithm/v1.0.0.md` | **The loop.** Twelve completion claims, each carrying either `HOOK` (blocked mechanically) or `CHECK` (executed and recorded). No phases, no effort tiers, no mode to declare, and no self-attestation tier — see *Design commitments*. |
@@ -214,7 +214,7 @@ One agent: **`Forge`**. A cross-vendor reviewer running on OpenAI lineage via th
 
 | Tool | Purpose |
 |---|---|
-| `ndeko.ts` | **The launcher.** Runs a session against this tree, wires `system-prompt.md` via `--append-system-prompt-file`, and strips `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` before spawn. Refuses to pass `--bare` at all. |
+| `ndeko.ts` | **The launcher.** Runs a session against this tree (or `ndeko remote-control …`) and strips `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` before spawn. Refuses to pass `--bare` at all. |
 | `privacy-scan.ts` | The publish gate. `--staged` for the pre-commit hook, `--all` for a pre-release audit. |
 | `PathGate.ts` | The build gate for the path invariant. A script rather than a grep, because a naive `rg` flags comments and prose — and a gate with a high false-positive rate is a gate people route around. |
 | `agents-md.ts` | Regenerates `AGENTS.md` from the doctrine sources. |
@@ -237,7 +237,7 @@ One agent: **`Forge`**. A cross-vendor reviewer running on OpenAI lineage via th
 **Load order at session start:**
 
 1. `CLAUDE.md` — auto-loaded from the config dir, pulls in `assistant.md` via `@`
-2. `system-prompt.md` — appended by the launcher
+2. `system-prompt.md` — the `ndeko` output style, selected in `settings.json`
 3. `settings.json` — env, permissions, hooks, `autoMode` policy
 4. Data tree — identity, goals, memory (activated once populated)
 5. Skills and agents — discovered from `skills/` and `agents/`, loaded on demand
@@ -299,7 +299,8 @@ ndeko-os/
 ├── README.md               this file
 ├── AGENTS.md               generated portable doctrine — the agent entry point
 ├── CLAUDE.md               routing table (auto-loaded)
-├── system-prompt.md        constitutional rules (via --append-system-prompt-file)
+├── system-prompt.md        constitutional rules (the ndeko output style)
+├── output-styles/ndeko.md  symlink → system-prompt.md
 ├── assistant.md            voice and personality (@-imported)
 ├── settings.json           env · permissions · hooks · autoMode policy
 ├── algorithm/              LATEST → v1.0.0.md — the loop and its 12 claims

@@ -1,6 +1,6 @@
 # ndeko
 
-Constitutional rules, the response format, verification doctrine, security protocol, and the billing constraint all live in the system prompt (`~/.claude/system-prompt.md`, loaded via `--append-system-prompt-file`). **When this file and the system prompt disagree, the system prompt wins.**
+Constitutional rules, the response format, verification doctrine, security protocol, and the billing constraint all live in the system prompt (`~/.claude/system-prompt.md`, loaded as the `ndeko` output style: `output-styles/ndeko.md` links to it and `settings.json` selects it, so every session gets it, including ones Remote Control starts). **When this file and the system prompt disagree, the system prompt wins.**
 
 This file is the routing table. Everything below is on-demand lookup.
 
