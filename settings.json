@@ -300,7 +300,8 @@
     "refreshInterval": 5
   },
   "enabledPlugins": {
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true
   },
   "effortLevel": "high",
   "outputStyle": "ndeko",
