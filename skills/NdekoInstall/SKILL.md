@@ -24,6 +24,7 @@ are, what they are working toward, and what it may do without asking.
 | `privacy-denylist.txt` | Terms that must never enter the harness repo | Yes |
 | `identity/pacts.md` | Standing agreements between them and me | Optional |
 | `identity/voice.md` + `identity/voice/` | Measured writing voice, per channel | Defer |
+| `config.toml` `[typesafe]` | Opt-in Jev shadow experiments: `shadow = true`, `api_key_env = "<their key's env var>"`, `model` pinned. Enabling it sends session text to api.typesafe.ai, so ask and name that egress | Optional |
 | `memory/MEMORY.md` | Auto-memory index | Created by the harness |
 
 **Voice profiles are a measurement job, not an interview.** They require a real corpus

@@ -610,3 +610,62 @@ describe("EnvFileGate", () => {
     expect(proc.exitCode).toBe(0);
   });
 });
+
+describe("JevShadow", () => {
+  test("silent and inert with no [typesafe] config", async () => {
+    const r = await runHook("JevShadow.hook.ts", base("Stop", { last_assistant_message: "Tests pass." }));
+    expect(r.code).toBe(0);
+    expect(r.stdout.trim()).toBe("");
+    expect(existsSync(join(TMP, "state", "jev-queue"))).toBe(false);
+  });
+
+  test("inert when shadow is on but the named key env var is unset", async () => {
+    writeFileSync(join(TMP, "config.toml"), `[typesafe]\napi_key_env = "JEV_TEST_KEY_UNSET"\nshadow = true\n`);
+    try {
+      const r = await runHook("JevShadow.hook.ts", base("Stop", { last_assistant_message: "Tests pass." }), { JEV_TEST_KEY_UNSET: "" });
+      expect(r.code).toBe(0);
+      expect(r.stdout.trim()).toBe("");
+      expect(existsSync(join(TMP, "state", "jev-queue"))).toBe(false);
+    } finally {
+      rmSync(join(TMP, "config.toml"), { force: true });
+    }
+  });
+});
+
+describe("jev-shadow parseTurns", async () => {
+  process.env.NDEKO_DATA_DIR = TMP;
+  const { parseTurns, classifyPrompt } = await import("./lib/jev-shadow.ts");
+  const L = (o: unknown) => JSON.stringify(o);
+  const user = (content: unknown, extra = {}) => L({ type: "user", message: { role: "user", content }, ...extra });
+  const asst = (content: unknown[], extra = {}) => L({ type: "assistant", message: { role: "assistant", content }, ...extra });
+
+  test("classifies prompt kinds", () => {
+    expect(classifyPrompt("<task-notification>\n<task-id>x").kind).toBe("task-notification");
+    expect(classifyPrompt("<agent-message from=\"a\">").kind).toBe("agent-handback");
+    expect(classifyPrompt("<cross-session-message from=\"uds\">").kind).toBe("peer");
+    expect(classifyPrompt("<command-name>/Debrief</command-name>")).toEqual({ kind: "slash", slash: "Debrief" });
+    expect(classifyPrompt("fix the build").kind).toBe("human");
+  });
+
+  test("splits turns, collects skills, keeps only text after the last tool call", () => {
+    const jsonl = [
+      L({ type: "queue-operation", operation: "enqueue", content: "<cross-session-message from=\"p\">hi</cross-session-message>" }),
+      L({ type: "queue-operation", operation: "dequeue" }),
+      asst([{ type: "text", text: "working" }, { type: "tool_use", id: "t1", name: "Skill", input: { skill: "Research" } }]),
+      user([{ type: "tool_result", tool_use_id: "t1", content: "ok" }]),
+      asst([{ type: "tool_use", id: "t2", name: "Read", input: { file_path: join(TMP, "memory", "a-memory.md") } }]),
+      user("sidechain noise", { isSidechain: true }),
+      asst([{ type: "text", text: "Final answer." }]),
+      user("<system-reminder>x</system-reminder>second prompt"),
+      L({ type: "attachment", attachment: { type: "queued_command", prompt: "mid-turn prompt" } }),
+      asst([{ type: "text", text: "Done." }]),
+    ].join("\n");
+    const turns = parseTurns(jsonl);
+    expect(turns.map((t) => t.kind)).toEqual(["peer", "human", "human"]);
+    expect(turns[0]!.skillsInvoked).toEqual(["Research"]);
+    expect(turns[0]!.finalMessage).toBe("Final answer.");
+    expect(turns[1]!.prompt).toBe("second prompt");
+    expect(turns[2]!.prompt).toBe("mid-turn prompt");
+    expect(turns[2]!.finalMessage).toBe("Done.");
+  });
+});

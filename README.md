@@ -180,6 +180,7 @@ Hooks are reserved for exactly two things: **a checkable property of an artifact
 | `MemoryReconcile` | SessionStart | Reconciles the memory index against what is actually on disk. |
 | `Toolbelt` | SessionStart | Reports per-repo tool availability (e.g. whether `ast-grep` is on `PATH`) so the session picks the right search tool instead of assuming. |
 | `VerificationGate` | Stop | The teeth behind the verification claim. Blocks a done-claim that has no tool evidence of the right modality. |
+| `JevShadow` | Stop | Log-only. Asks TypeSafe's Jev model the gate's claim question, and the skill-routing question for each turn, and logs its answers beside the transcript's ground truth. Detached, so it adds no latency. Off unless `[typesafe] shadow = true` in the data tree's `config.toml`. `bun tools/jev.ts backfill\|report` evaluates. |
 
 `hooks/lib/` holds the shared library: `paths.ts` (below), `hook-input.ts`, `hook-io.ts`, `transcript-evidence.ts`, `memory-records.ts`, and `catastrophic-shapes.ts`. Tests live beside the code — **224 across three files**: `hooks/hooks.test.ts`, `hooks/lib/catastrophic-shapes.test.ts`, `tools/privacy-scan.test.ts`.
 

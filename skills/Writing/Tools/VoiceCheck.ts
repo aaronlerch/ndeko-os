@@ -32,9 +32,12 @@
  *   bun VoiceCheck.ts --channel documents --json <file>
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { dataPath } from "../../../hooks/lib/paths.ts";
+import { dataPath, stateDir } from "../../../hooks/lib/paths.ts";
+import { loadJevConfig } from "../../../hooks/lib/typesafe.ts";
 
 const CHANNELS = ["email", "slack", "documents", "directing-work"] as const;
 type Channel = (typeof CHANNELS)[number];
@@ -230,6 +233,23 @@ export function analyze(text: string, channel: Channel, overlay: Overlay | null)
   return { total, hedgeRate, bulletPct, emDash, dashDash, emoji, hasGreeting, findings, band, banded };
 }
 
+/**
+ * Hand the draft to VoiceJudge (Jev, shadow-only) in a detached process. It logs
+ * judgments to the data tree and never touches this tool's output or exit code.
+ * No-op unless [typesafe] shadow is on and its key is set.
+ */
+function shadowJudge(text: string, channel: Channel, r: ReturnType<typeof analyze>): void {
+  try {
+    if (!loadJevConfig()) return;
+    const dir = join(stateDir(), "jev-queue");
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `voice-${randomUUID()}.json`);
+    const { findings, total, hedgeRate, bulletPct } = r;
+    writeFileSync(file, JSON.stringify({ text, channel, voiceCheck: { total, hedgeRate, bulletPct, findings } }));
+    spawn(process.execPath, [join(import.meta.dir, "VoiceJudge.ts"), "--log", file], { detached: true, stdio: "ignore" }).unref();
+  } catch { /* shadow must never break the check */ }
+}
+
 function main(): void {
   const argv = process.argv.slice(2);
   const json = argv.includes("--json");
@@ -245,6 +265,7 @@ function main(): void {
   const { overlay, problem } = loadOverlay();
   const text = target === "-" ? readFileSync(0, "utf8") : readFileSync(target, "utf8");
   const r = analyze(text, channel, overlay);
+  shadowJudge(text, channel, r);
 
   if (json) {
     console.log(JSON.stringify({ ...r, profileLoaded: Boolean(overlay), profileProblem: problem }, null, 2));

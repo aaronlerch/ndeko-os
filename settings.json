@@ -217,6 +217,11 @@
             "type": "command",
             "command": "bun --env-file=/dev/null $HOME/.claude/hooks/VerificationGate.hook.ts",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bun --env-file=/dev/null $HOME/.claude/hooks/JevShadow.hook.ts",
+            "timeout": 5
           }
         ]
       },
