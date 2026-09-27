@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { scanFile } from "./privacy-scan.ts";
+import { absoluteLinkTarget, scanFile, scanMessage } from "./privacy-scan.ts";
 
 const buf = (s: string) => Buffer.from(s, "utf8");
 const labels = (file: string, body: string, deny: string[] = []) =>
@@ -175,5 +175,31 @@ describe("forbidden paths", () => {
   test("a path merely CONTAINING a forbidden name is not refused", () => {
     // `hooks/lib/memory-records.ts` must not trip the `^memory/` rule.
     expect(clean("hooks/lib/memory-records.ts", "ordinary content")).toBe(true);
+  });
+});
+
+describe("commit messages (commit-msg hook)", () => {
+  test("a denylisted term in a message body is caught", () => {
+    const f = scanMessage("Sync demo-video\n\nMirrors the upstream change (acmecorp/acmecorp-app)\n", ["acmecorp"]);
+    expect(f.map((x) => x.label)).toContain("denylisted term");
+  });
+  test("git's own # comment lines are not scanned", () => {
+    expect(scanMessage("Fix typo\n# On branch acmecorp-feature\n", ["acmecorp"])).toEqual([]);
+  });
+  test("a clean message passes", () => {
+    expect(scanMessage("Mirror the upstream narrate-only change\n", ["acmecorp"])).toEqual([]);
+  });
+});
+
+describe("symlinks", () => {
+  test("an absolute symlink target is caught", () => {
+    const target = "/Users/somebody/src/tool/skills/x"; // privacy-gate:allow
+    expect(scanFile("skills/x", buf(target), [], true).map((f) => f.label)).toContain(
+      "absolute symlink target (machine-specific; link relatively or keep it untracked)",
+    );
+  });
+  test("a relative symlink target is fine", () => {
+    expect(absoluteLinkTarget("output-styles/x.md", "../system-prompt.md")).toBeNull();
+    expect(scanFile("output-styles/x.md", buf("../system-prompt.md"), [], true)).toEqual([]);
   });
 });

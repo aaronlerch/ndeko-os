@@ -123,3 +123,9 @@ state/
 
 # ─── OS noise
 .DS_Store
+
+# Symlinks into a local Interceptor checkout. Their targets are absolute paths on
+# one machine, so they stay untracked; recreate them per machine.
+skills/interceptor-browser
+skills/interceptor-macos
+skills/interceptor-research

@@ -221,9 +221,9 @@ step "Git hooks"
 HOOKS_REL="hooks/git"
 if [ ! -d "$REPO_ROOT/.git" ] && [ ! -f "$REPO_ROOT/.git" ]; then
   info "not a git checkout — skipping hook wiring"
-elif [ ! -x "$REPO_ROOT/$HOOKS_REL/pre-commit" ]; then
-  warn "$HOOKS_REL/pre-commit is missing or not executable"
-  info "fix with: chmod +x $HOOKS_REL/pre-commit"
+elif [ ! -x "$REPO_ROOT/$HOOKS_REL/pre-commit" ] || [ ! -x "$REPO_ROOT/$HOOKS_REL/commit-msg" ]; then
+  warn "$HOOKS_REL/pre-commit or $HOOKS_REL/commit-msg is missing or not executable"
+  info "fix with: chmod +x $HOOKS_REL/pre-commit $HOOKS_REL/commit-msg"
 else
   current_hooks="$(git -C "$REPO_ROOT" config --local --get core.hooksPath 2>/dev/null || true)"
   if [ "$current_hooks" = "$HOOKS_REL" ]; then
@@ -234,7 +234,7 @@ else
     git -C "$REPO_ROOT" config --local core.hooksPath "$HOOKS_REL"
     ok "core.hooksPath -> $HOOKS_REL (was: ${current_hooks:-unset})"
   fi
-  info "pre-commit runs tools/privacy-scan.ts; bypass with git commit --no-verify"
+  info "pre-commit and commit-msg run tools/privacy-scan.ts; bypass with git commit --no-verify"
 fi
 
 # ─── Shell integration ──────────────────────────────────────────────────────

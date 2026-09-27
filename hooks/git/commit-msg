@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# commit-msg — refuse a commit MESSAGE that must not become public.
+#
+# The release flow publishes history, and a message ships with it exactly like a
+# file does. pre-commit scans staged files only, so until this hook existed any
+# message could name anything: two did, naming an internal repo (2026-09-27).
+# Same scanner, same denylist, same bypass as pre-commit.
+#
+# Bypass with `git commit --no-verify` when you mean to.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+if ! command -v bun >/dev/null 2>&1; then
+  # Fail CLOSED, for the same reason pre-commit does.
+  printf '\ncommit-msg: bun not found on PATH — cannot run the privacy scan.\n' >&2
+  printf '            Install bun, or commit with --no-verify if you are certain.\n\n' >&2
+  exit 1
+fi
+
+exec bun "$REPO_ROOT/tools/privacy-scan.ts" --message "$1"

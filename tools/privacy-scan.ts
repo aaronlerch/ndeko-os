@@ -51,14 +51,26 @@
  *     of commenting makes a real name belong in a public repo. The asymmetry is
  *     deliberate: a shape is safe to write, an identity is not.
  *
+ * HISTORY AND MESSAGES (2026-09-27)
+ *
+ * The release flow publishes this repo's HISTORY, not just its tree, and two
+ * things escaped every check before this: commit MESSAGES (nothing scanned them;
+ * two named an internal repo) and SYMLINKS in `--all` (statSync followed each
+ * link to its target and skipped it, so three links to an absolute home path
+ * read as clean). `--message` backs the commit-msg hook; `--history` is the
+ * pre-release audit over every added line and every message in a range.
+ *
  * Usage:
- *   bun tools/privacy-scan.ts --staged    scan the git index (exit 1 on any hit)
- *   bun tools/privacy-scan.ts --all       scan every tracked file
- *   bun tools/privacy-scan.ts --all -q    exit code only, no output
+ *   bun tools/privacy-scan.ts --staged            scan the git index (exit 1 on any hit)
+ *   bun tools/privacy-scan.ts --all               scan every tracked file
+ *   bun tools/privacy-scan.ts --all -q            exit code only, no output
+ *   bun tools/privacy-scan.ts --message <file>    scan a commit message (commit-msg hook)
+ *   bun tools/privacy-scan.ts --history [<range>] scan added lines + messages of every
+ *                                                 commit in <range> (default: all of HEAD)
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadDenylist, scan, denylistFile } from "../hooks/PrivacyBoundary.hook.ts";
@@ -162,6 +174,13 @@ function stagedBytes(file: string): Buffer | null {
 
 function worktreeBytes(file: string): Buffer | null {
   const p = join(root, file);
+  try {
+    // A symlink's committed content is its target PATH. Following the link (as
+    // statSync does) scans the wrong bytes, or skips a link to a directory.
+    if (lstatSync(p).isSymbolicLink()) return Buffer.from(readlinkSync(p), "utf8");
+  } catch {
+    return null;
+  }
   if (!existsSync(p)) return null;
   try {
     return statSync(p).isFile() ? readFileSync(p) : null;
@@ -174,8 +193,75 @@ function isBinary(buf: Buffer): boolean {
   return buf.subarray(0, 8000).includes(0);
 }
 
-export function scanFile(file: string, buf: Buffer, denylist: string[]): Finding[] {
+/** Mode bits git reports for a symlink. */
+const SYMLINK_MODE = "120000";
+
+/** An absolute symlink target only resolves on the machine that made it. */
+export function absoluteLinkTarget(file: string, target: string): Finding | null {
+  return target.startsWith("/")
+    ? { file, line: null, label: "absolute symlink target (machine-specific; link relatively or keep it untracked)", match: target }
+    : null;
+}
+
+/** Term, structural and credential checks on free text (a message, an added line). */
+export function scanText(where: string, text: string, denylist: string[]): Finding[] {
   const out: Finding[] = [];
+  for (const hit of scan(text, denylist)) out.push({ file: where, line: hit.line ?? null, label: hit.label, match: hit.match });
+  const lines = text.split("\n");
+  lines.forEach((t, i) => {
+    if (INLINE_ALLOW.test(t) || (i > 0 && INLINE_ALLOW.test(lines[i - 1]!))) return;
+    for (const { label, re } of CREDENTIALS) {
+      const m = t.match(re);
+      if (m) out.push({ file: where, line: i + 1, label, match: m[0] });
+    }
+  });
+  return out;
+}
+
+/** A commit message as git hands it to commit-msg: `#` lines are stripped by git. */
+export function scanMessage(message: string, denylist: string[]): Finding[] {
+  const body = message.split("\n").filter((l) => !l.startsWith("#")).join("\n");
+  return scanText("commit message", body, denylist);
+}
+
+/**
+ * Every added line and every full message in `range`. Added lines are scanned one
+ * at a time, so an inline allow only counts when it sits on the added line itself.
+ */
+export function scanHistory(range: string, denylist: string[]): { commits: number; findings: Finding[] } {
+  const findings: Finding[] = [];
+  const shas = git("rev-list", range).split("\n").filter(Boolean);
+  for (const sha of shas) {
+    const short = sha.slice(0, 7);
+    findings.push(...scanMessage(git("log", "-1", "--format=%B", sha), denylist).map((f) => ({ ...f, file: `${short} message` })));
+    const patch = git("show", "--format=", "--no-color", "--no-ext-diff", "-U0", sha);
+    let file = "", linkNext = false, prev: string | null = null;
+    for (const line of patch.split("\n")) {
+      if (line.startsWith("diff --git ")) { file = line.split(" b/")[1] ?? line; linkNext = false; prev = null; continue; }
+      if (line.startsWith(`new file mode ${SYMLINK_MODE}`) || line.startsWith(`new mode ${SYMLINK_MODE}`)) { linkNext = true; continue; }
+      if (line.startsWith("@@")) { prev = null; continue; }
+      if (!line.startsWith("+") || line.startsWith("+++")) continue;
+      const added = line.slice(1);
+      const where = `${short} ${file}`;
+      if (linkNext) { const f = absoluteLinkTarget(where, added); if (f) findings.push(f); }
+      // Scan with the previous added line in view so an allow marker on the line
+      // above is honoured, the same as in a file scan; keep only this line's hits.
+      const text = prev === null ? added : `${prev}\n${added}`;
+      const last = prev === null ? 1 : 2;
+      findings.push(...scanText(where, text, denylist).filter((f) => f.line === last).map((f) => ({ ...f, line: null })));
+      prev = added;
+    }
+  }
+  return { commits: shas.length, findings };
+}
+
+export function scanFile(file: string, buf: Buffer, denylist: string[], isLink = false): Finding[] {
+  const out: Finding[] = [];
+
+  if (isLink) {
+    const f = absoluteLinkTarget(file, buf.toString("utf8"));
+    if (f) out.push(f);
+  }
 
   for (const { re, why } of FORBIDDEN_PATHS) {
     if (re.test(file)) out.push({ file, line: null, label: `forbidden path — ${why}`, match: file });
@@ -213,40 +299,27 @@ export function scanFile(file: string, buf: Buffer, denylist: string[]): Finding
   return out;
 }
 
-function main(): void {
-  const argv = process.argv.slice(2);
-  const mode = argv.includes("--all") ? "all" : "staged";
-  const quiet = argv.includes("-q") || argv.includes("--quiet");
-
-  const denylist = loadDenylist();
-  const files = mode === "all" ? trackedFiles() : stagedFiles();
-  const read = mode === "all" ? worktreeBytes : stagedBytes;
-
-  const findings: Finding[] = [];
-  for (const f of files) {
-    const buf = read(f);
-    if (buf) findings.push(...scanFile(f, buf, denylist));
+/** Paths git records as symlinks, in the index. */
+function linkPaths(): Set<string> {
+  const out = new Set<string>();
+  for (const rec of git("ls-files", "-s", "-z").split("\0")) {
+    if (rec.startsWith(`${SYMLINK_MODE} `)) out.add(rec.split("\t")[1]!);
   }
+  return out;
+}
 
+function report(findings: Finding[], label: string, clean: string, denylist: string[], quiet: boolean): never {
   if (quiet) process.exit(findings.length ? 1 : 0);
-
   if (!denylist.length) {
     process.stderr.write(
       `privacy-scan: no denylist at ${tilde(denylistFile())} — structural, path, binary and size checks only.\n` +
         `             Term checks are SKIPPED. This is expected on a fresh clone.\n\n`,
     );
   }
-
   if (!findings.length) {
-    const what = mode === "all" ? "tracked" : "staged";
-    process.stderr.write(
-      `privacy-scan: clean — ${files.length} ${what} file${files.length === 1 ? "" : "s"}, ` +
-        `${denylist.length} term${denylist.length === 1 ? "" : "s"}.\n`,
-    );
+    process.stderr.write(`privacy-scan: clean — ${clean}, ${denylist.length} term${denylist.length === 1 ? "" : "s"}.\n`);
     process.exit(0);
   }
-
-  const label = mode === "all" ? "TRACKED TREE" : "STAGED CHANGES";
   process.stderr.write(`\nprivacy-scan: ${findings.length} finding(s) in ${label}\n\n`);
   for (const f of findings) {
     const at = f.line === null ? f.file : `${f.file}:${f.line}`;
@@ -260,6 +333,39 @@ function main(): void {
       `To commit anyway: git commit --no-verify\n\n`,
   );
   process.exit(1);
+}
+
+function main(): void {
+  const argv = process.argv.slice(2);
+  const quiet = argv.includes("-q") || argv.includes("--quiet");
+  const denylist = loadDenylist();
+
+  const mi = argv.indexOf("--message");
+  if (mi !== -1) {
+    const findings = scanMessage(readFileSync(argv[mi + 1]!, "utf8"), denylist);
+    report(findings, "COMMIT MESSAGE", "commit message", denylist, quiet);
+  }
+  const hi = argv.indexOf("--history");
+  if (hi !== -1) {
+    const next = argv[hi + 1];
+    const range = next && !next.startsWith("-") ? next : "HEAD";
+    const { commits, findings } = scanHistory(range, denylist);
+    report(findings, `HISTORY (${range})`, `${commits} commit${commits === 1 ? "" : "s"} in ${range}`, denylist, quiet);
+  }
+
+  const mode = argv.includes("--all") ? "all" : "staged";
+  const files = mode === "all" ? trackedFiles() : stagedFiles();
+  const read = mode === "all" ? worktreeBytes : stagedBytes;
+  const links = linkPaths();
+
+  const findings: Finding[] = [];
+  for (const f of files) {
+    const buf = read(f);
+    if (buf) findings.push(...scanFile(f, buf, denylist, links.has(f)));
+  }
+
+  const what = mode === "all" ? "tracked" : "staged";
+  report(findings, mode === "all" ? "TRACKED TREE" : "STAGED CHANGES", `${files.length} ${what} file${files.length === 1 ? "" : "s"}`, denylist, quiet);
 }
 
 if (import.meta.main) main();
