@@ -22,6 +22,7 @@ daemon.lock
 daemon.status.json
 daemon.log
 jobs/
+bridge-spawn/
 *.lock
 .last_inuse_sweep
 .last-update-result.json
