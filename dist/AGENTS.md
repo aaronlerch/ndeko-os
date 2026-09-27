@@ -7,7 +7,7 @@ named in each section heading; edit those. This artifact exists so the doctrine 
 readable by agent tools that do not load Claude Code's config — the second-vendor
 arm this system already depends on, and any harness it might have to move to.
 
-<!-- ndeko:sources-digest c973e617647653f0 -->
+<!-- ndeko:sources-digest 9e8be518cada27e0 -->
 
 ---
 
@@ -278,7 +278,7 @@ Paths are `~/`-absolute so they resolve from any working directory — these fil
 | Second-look agents | `~/.claude/agents/` |
 | Launcher | `~/.claude/tools/ndeko.ts` |
 | Memory retirement — supersede, archive, status | `~/.claude/tools/memory.ts` |
-| Portable doctrine artifact (generated) | `~/.claude/AGENTS.md` ← `bun ~/.claude/tools/agents-md.ts` |
+| Portable doctrine artifact (generated) | `~/.claude/dist/AGENTS.md` ← `bun ~/.claude/tools/agents-md.ts` |
 | Eval cases | `~/.claude/evals/` |
 | Research the system was designed from (dated 2026-08, not maintained) | `~/.claude/docs/` |
 

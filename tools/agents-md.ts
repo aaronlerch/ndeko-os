@@ -28,7 +28,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { agentsMdFile, assistantFile, claudeMdFile, harnessPath, harnessRoot, systemPromptFile } from "../hooks/lib/paths.ts";
 
@@ -175,6 +175,7 @@ function main(): void {
   }
 
   const out = render();
+  mkdirSync(dirname(agentsMdFile()), { recursive: true });
   writeFileSync(agentsMdFile(), out, "utf8");
   const rel = agentsMdFile().replace(`${harnessRoot()}/`, "");
   process.stdout.write(`wrote ${rel} — ${out.length} bytes, sources digest ${want}\n`);

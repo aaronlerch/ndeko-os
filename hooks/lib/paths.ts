@@ -120,7 +120,7 @@ export const hookManifestFile = () => harnessPath("hooks.json");
 export const claudeMdFile = () => harnessPath("CLAUDE.md");
 export const systemPromptFile = () => harnessPath("system-prompt.md");
 export const assistantFile = () => harnessPath("assistant.md");
-export const agentsMdFile = () => harnessPath("AGENTS.md");
+export const agentsMdFile = () => harnessPath("dist", "AGENTS.md");
 
 /**
  * Current algorithm doctrine file, resolved through algorithm/LATEST.

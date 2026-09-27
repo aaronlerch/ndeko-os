@@ -35,7 +35,7 @@ Paths are `~/`-absolute so they resolve from any working directory — these fil
 | Second-look agents | `~/.claude/agents/` |
 | Launcher | `~/.claude/tools/ndeko.ts` |
 | Memory retirement — supersede, archive, status | `~/.claude/tools/memory.ts` |
-| Portable doctrine artifact (generated) | `~/.claude/AGENTS.md` ← `bun ~/.claude/tools/agents-md.ts` |
+| Portable doctrine artifact (generated) | `~/.claude/dist/AGENTS.md` ← `bun ~/.claude/tools/agents-md.ts` |
 | Eval cases | `~/.claude/evals/` |
 | Research the system was designed from (dated 2026-08, not maintained) | `~/.claude/docs/` |
 

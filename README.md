@@ -97,7 +97,7 @@ If you are an agent asked to understand, install, or operate this harness, read 
 
 | Read | For |
 |---|---|
-| [`AGENTS.md`](AGENTS.md) | **Start here.** A generated, self-contained rendering of the doctrine — constitutional rules, the algorithm, verification, self-healing — for tools that do not load Claude Code's config. Regenerate with `bun tools/agents-md.ts`; never hand-edit it. |
+| [`dist/AGENTS.md`](dist/AGENTS.md) | **Start here.** A generated, self-contained rendering of the doctrine — constitutional rules, the algorithm, verification, self-healing — for tools that do not load Claude Code's config. Regenerate with `bun tools/agents-md.ts`; never hand-edit it. |
 | [`system-prompt.md`](system-prompt.md) | The constitutional rules and the single output format. Five rules outrank everything else. |
 | [`CLAUDE.md`](CLAUDE.md) | The routing table — where every other thing lives. |
 | [`algorithm/`](algorithm/) | The loop, and the twelve completion claims with their teeth. |
@@ -217,7 +217,7 @@ One agent: **`Forge`**. A cross-vendor reviewer running on OpenAI lineage via th
 | `ndeko.ts` | **The launcher.** Runs a session against this tree — or `ndeko rc`, Remote Control with worktree spawning, `auto` permissions, and a `<host>-<repo>` session-name prefix — and strips `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` before spawn. Refuses to pass `--bare` at all. |
 | `privacy-scan.ts` | The publish gate. `--staged` for the pre-commit hook, `--all` for a pre-release audit. |
 | `PathGate.ts` | The build gate for the path invariant. A script rather than a grep, because a naive `rg` flags comments and prose — and a gate with a high false-positive rate is a gate people route around. |
-| `agents-md.ts` | Regenerates `AGENTS.md` from the doctrine sources. |
+| `agents-md.ts` | Regenerates `dist/AGENTS.md` from the doctrine sources. |
 | `memory.ts` | Memory retirement — supersede, archive, status. |
 | `BillingPathAssertion.ts` | Out-of-band verification that a real session is on the subscription carrier. |
 | `models.ts` | Model registry and drift scanner. |
@@ -297,7 +297,7 @@ The test for any procedural line: **would a smarter model make this unnecessary?
 ndeko-os/
 ├── install.sh              mount this checkout as ~/.claude; wires the git hook
 ├── README.md               this file
-├── AGENTS.md               generated portable doctrine — the agent entry point
+├── dist/AGENTS.md          generated portable doctrine — the agent entry point
 ├── CLAUDE.md               routing table (auto-loaded)
 ├── system-prompt.md        constitutional rules (the ndeko output style)
 ├── output-styles/ndeko.md  symlink → system-prompt.md
