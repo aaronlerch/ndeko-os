@@ -70,7 +70,9 @@ export function classifyPrompt(raw: string): { kind: PromptKind; slash: string |
 /** Split a main-session transcript into turns. Sidechain and meta entries are skipped. */
 export function parseTurns(jsonl: string): Turn[] {
   const turns: Turn[] = [];
-  let cur: Turn | null = null;
+  // `as` keeps the declared type: `cur` is reassigned inside open/close, which
+  // control-flow narrowing cannot see, so a plain `= null` narrows it to never.
+  let cur = null as Turn | null;
   let trailing: string[] = [];
 
   const close = () => {

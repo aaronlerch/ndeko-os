@@ -17,5 +17,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["hooks/**/*.ts", "tools/**/*.ts"]
+  "include": ["hooks/**/*.ts", "tools/**/*.ts"],
+  // demo-video is its own package (playwright, pg) synced from upstream; typecheck it there.
+  "exclude": ["tools/demo-video/**"]
 }

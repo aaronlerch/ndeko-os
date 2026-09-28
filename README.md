@@ -135,6 +135,7 @@ The write-time hook cannot see three things: content you wrote by hand, content 
 ```bash
 bun tools/privacy-scan.ts --all       # audit every tracked file
 bun tools/privacy-scan.ts --staged    # what a commit is about to record
+bun tools/privacy-scan.ts --history <range>  # every added line and commit message in a range
 ```
 
 Same code in both modes, deliberately — a release audit that had drifted weaker than the commit gate would still read as a pass. It checks denylisted terms, structural shapes (home paths, key blocks), credential patterns, binary content, a 256 KB size ceiling, and a forbidden-path list.
@@ -179,10 +180,12 @@ Hooks are reserved for exactly two things: **a checkable property of an artifact
 | `MemoryProvenance` | PostToolUse (writes) | Stamps provenance on every memory file. Native memory has an index and consolidation but no record of *where a claim came from* — and a learning from a verified run is not the same trust tier as one from a fetched page. |
 | `MemoryReconcile` | SessionStart | Reconciles the memory index against what is actually on disk. |
 | `Toolbelt` | SessionStart | Reports per-repo tool availability (e.g. whether `ast-grep` is on `PATH`) so the session picks the right search tool instead of assuming. |
+| `EnvFileGate` | PreToolUse (reads, writes, Bash) | Blocks secret-bearing dotenv files while leaving templates like `.env.example` usable. A hook because a `permissions.deny` rule cannot carry an exception. |
+| `AuthoringDoctrine` | PreToolUse (writes) | Never blocks. Points to `doctrine/authoring.md` when the file being written is one an agent will later read as instructions — a skill, `CLAUDE.md`, doctrine, the system prompt. |
 | `VerificationGate` | Stop | The teeth behind the verification claim. Blocks a done-claim that has no tool evidence of the right modality. |
 | `JevShadow` | Stop | Log-only. Asks TypeSafe's Jev model the gate's claim question, and the skill-routing question for each turn, and logs its answers beside the transcript's ground truth. Detached, so it adds no latency. Off unless `[typesafe] shadow = true` in the data tree's `config.toml`. `bun tools/jev.ts backfill\|report` evaluates. |
 
-`hooks/lib/` holds the shared library: `paths.ts` (below), `hook-input.ts`, `hook-io.ts`, `transcript-evidence.ts`, `memory-records.ts`, and `catastrophic-shapes.ts`. Tests live beside the code — **224 across three files**: `hooks/hooks.test.ts`, `hooks/lib/catastrophic-shapes.test.ts`, `tools/privacy-scan.test.ts`.
+`hooks/lib/` holds the shared library: `paths.ts` (below), `hook-input.ts`, `hook-io.ts`, `transcript-evidence.ts`, `memory-records.ts`, and `catastrophic-shapes.ts`. Tests live beside the code — **252 across three files**: `hooks/hooks.test.ts`, `hooks/lib/catastrophic-shapes.test.ts`, `tools/privacy-scan.test.ts`.
 
 ### `hooks/lib/paths.ts` — the single path authority
 
@@ -194,15 +197,16 @@ The harness root is **derived from this module's own location**. The file always
 
 ### `skills/` — curated capability
 
-**23 public skills**, each a `SKILL.md` plus optional `Workflows/`, `Tools/`, and `References/`. A further **6 prefixed with `_` are private**: they encode customer or employer specifics, load normally on the owner's machine, and are gitignored so a fresh clone gets the harness without them. That leading underscore is the public/private boundary throughout the repo.
+**27 public skills**, each a `SKILL.md` plus optional `Workflows/`, `Tools/`, and `References/`. Skills prefixed with `_` are **private**: they encode customer or employer specifics, load normally on the owner's machine, and are gitignored so a fresh clone gets the harness without them. That leading underscore is the public/private boundary throughout the repo.
 
 Roughly grouped:
 
 - **Thinking** — `FirstPrinciples`, `SystemsThinking`, `RootCauseAnalysis`, `Science`, `RedTeam`, `IterativeDepth`
+- **Communication** — `WaitWhat` (re-pitches a message that did not land), `Debrief` (the full account of a finished build, as a review page)
 - **Verification & safety** — `Interceptor` (real-Chrome browser automation; mandatory for any visual claim), `VetRepo`, `Infrastructure`
 - **Integrations** — `GoogleWorkspace`, `McpShim`, `Research`
 - **Authoring** — `Writing` — drafts in a measured voice, per channel, with a deterministic `VoiceCheck`. The method ships here; every measurement loads from the data tree.
-- **Media** — `Say`, `VoiceClone`, `ChatterboxTTS`, `AudioEditor`, `Remotion`
+- **Media** — `Say`, `Speak`, `VoiceClone`, `ChatterboxTTS`, `AudioEditor`, `Remotion`, `DemoVideo` (narrated demo videos recorded by driving a real browser)
 - **Meta** — `BitterPillEngineering` (audits instruction sets for over-prompting), `NdekoInstall` (interviews a new user and writes their data tree), `ISA`, `ApertureOscillation`, `PrivateInvestigator`
 
 Skills reference their own files through `${NDEKO_DIR}`, which `settings.json` sets to `$HOME/.claude`.
@@ -222,8 +226,11 @@ One agent: **`Forge`**. A cross-vendor reviewer running on OpenAI lineage via th
 | `memory.ts` | Memory retirement — supersede, archive, status. |
 | `BillingPathAssertion.ts` | Out-of-band verification that a real session is on the subscription carrier. |
 | `models.ts` | Model registry and drift scanner. |
+| `jev.ts` | Evaluates the `JevShadow` log — `backfill` over past transcripts, `report` on agreement. |
 | `statusline.sh` | Status line renderer, wired via `settings.json` → `statusLine`. |
 | `chatterbox/` | Voice-clone + TTS CLI behind the `Say`, `VoiceClone`, and `ChatterboxTTS` skills. Source is tracked; the ~1.3G venv is generated by `setup.sh` on first run and gitignored. Profiles are **not** here — they are recordings of real people and live in the data tree. |
+| `kokoro/` | Fast fixed-voice TTS behind `Speak` — 54 voices, no cloning, many times faster than realtime, and the same reading every run, which demo timing depends on. The venv is generated by `setup.sh` and gitignored. |
+| `demo-video/` | The narrated demo recorder behind `DemoVideo`. Its own package (browser automation, Postgres), synced from an upstream copy and excluded from the root typecheck. |
 
 ### `evals/`
 
@@ -305,13 +312,14 @@ ndeko-os/
 ├── assistant.md            voice and personality (@-imported)
 ├── settings.json           env · permissions · hooks · autoMode policy
 ├── algorithm/              LATEST → v1.0.0.md — the loop and its 12 claims
-├── doctrine/               verification · self-healing · philosophy (on demand)
-├── hooks/                  8 gates + lib/ + tests
+├── doctrine/               verification · self-healing · philosophy · authoring (on demand)
+├── hooks/                  11 hooks + lib/ + tests
 │   ├── git/pre-commit      the publish gate, via core.hooksPath
+│   ├── git/commit-msg      the same gate over commit messages
 │   └── lib/paths.ts        THE path authority — everything else routes here
-├── skills/                 23 public + 6 private (gitignored)
+├── skills/                 27 public; `_`-prefixed private ones gitignored
 ├── agents/Forge.md         cross-vendor second look
-├── tools/                  launcher · privacy-scan · PathGate · memory · statusline
+├── tools/                  launcher · privacy-scan · PathGate · memory · statusline · TTS · demo-video
 ├── evals/                  8 cases, 18 graders, never run
 └── docs/                   research and failure analysis (dated 2026-08, not maintained)
 ```
