@@ -1,0 +1,5 @@
+# `bun test` from the repo root must run only the harness's own tests. The
+# plugin marketplace cache under plugins/ ships third-party test files that
+# import modules this repo does not have, and failed 6 of 258 on 2026-10-04.
+[test]
+pathIgnorePatterns = ["plugins/**", "node_modules/**"]

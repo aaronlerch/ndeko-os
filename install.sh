@@ -327,7 +327,7 @@ say "  ${B}Restart any running Claude Code session${X} — a live session holds 
 say "  absolute config path in its environment and will not pick this up."
 say ""
 say "  Next:  ndeko            launch a session against this tree"
-say "         bun test         224 tests over the hooks, guards and privacy gate"
+say "         bun test         252 tests over the hooks, guards and privacy gate"
 say "         ./install.sh -n  re-check the install without changing anything"
 say ""
 exit 0

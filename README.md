@@ -275,7 +275,7 @@ bun hooks/lib/paths.ts          # both roots + the algorithm file resolve
 bun tools/PathGate.ts           # zero hardcoded config-root literals
 bun tools/privacy-scan.ts --all # tracked tree carries nothing personal
 bunx tsc --noEmit               # types
-bun test                        # 224 tests
+bun test                        # 252 tests
 ./install.sh --check            # re-check the mount without changing anything
 ```
 

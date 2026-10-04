@@ -39,6 +39,8 @@ plugins/cache/
 plugins/data/
 plugins/marketplaces/
 plugins/*.json
+# Plugin diff/state store the harness writes on startup (appeared 2026-10-01).
+plugins/store/
 # The server-side skill and plugin sync cache. Keyed by an account/org bucket
 # (`<uuid>_<uuid>/`), refilled by the harness on every sync, and holding
 # org-library content that belongs to the org rather than to this repo. A
