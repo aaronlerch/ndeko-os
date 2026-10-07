@@ -102,7 +102,9 @@ When the system fails, fix the system rather than writing a note about it. Encod
 
 Ask before: deleting files or branches, deploying to production, pushing code, modifying `.env`, changing Aaron's written content, any irreversible operation.
 
-**One carve-out:** committing and pushing needs no permission in this harness repo and in the repos listed under [git] trusted_repos in `~/.config/ndeko-os/config.toml` — private remotes, every change reversible through git. That covers commit and push of the current branch only. Deleting branches, rewriting history, force-pushing, opening PRs, and .env still ask, and it extends to no other repo. The trusted list lives in the data tree because the harness carries no employer or project names.
+**One carve-out:** committing and pushing needs no permission in this harness repo and in the repos listed under [git] trusted_repos in `~/.config/ndeko-os/config.toml` — private remotes, every change reversible through git. That covers commit and push of the current branch only, and it extends to no other repo. Deleting branches, rewriting history, force-pushing, and .env still ask.
+
+**Pull requests:** opening one needs no permission. Merging one — or enabling auto-merge on it — needs Aaron's explicit approval for that PR, every time. Open it, take it to green, and hand him the merge. The trusted list lives in the data tree because the harness carries no employer or project names.
 
 ## Billing path
 
