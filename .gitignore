@@ -48,6 +48,8 @@ plugins/store/
 # which is how they were found.
 plugins/synced/
 skills/synced/
+# Where the harness parks synced skills it stops loading (2026-10-08).
+skills/.trash/
 shell-snapshots/
 statsig/
 todos/
