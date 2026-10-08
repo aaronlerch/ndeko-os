@@ -2,8 +2,9 @@
 /**
  * Toolbelt.hook.ts — SessionStart
  *
- * Reports which structural-search capabilities exist in THIS repo. Inventory
- * only — an environment fact, never a rule about which tool to reach for.
+ * Reports which structural-search capabilities exist in THIS repo, plus the
+ * MCP servers reachable only through mcpshim. Inventory only — an environment
+ * fact, never a rule about which tool to reach for.
  *
  * WHY THE SPLIT MATTERS, because it is the trap this hook was written to avoid:
  *
@@ -42,6 +43,36 @@ const SG_CONFIG_NAMES = ["sgconfig.yml", "sgconfig.yaml"] as const;
 
 /** MCP server names that plausibly expose language-server semantics. */
 const LSP_SERVER_PATTERN = /lsp|serena|language[-_]?server|tsserver/i;
+
+/**
+ * MCP servers registered with the mcpshim daemon, by alias.
+ *
+ * These never appear in the harness's tool list or in ToolSearch — they are
+ * reached only through the `mcpshim` CLI — so without this line a session
+ * concludes "there is no MCP for that" and hand-builds the call. Caught
+ * 2026-10-08: a session hand-rolled an SDK script against a service
+ * while its MCP server sat registered and healthy in mcpshim.
+ *
+ * Bounded: the daemon answers over a local socket; a wedged or absent daemon
+ * costs at most the timeout and reports nothing.
+ */
+function mcpshimServers(): string[] {
+  if (Bun.which("mcpshim") === null) return [];
+  try {
+    const res = Bun.spawnSync(["mcpshim", "servers"], { timeout: 2000 });
+    if (res.exitCode !== 0) return [];
+    const parsed = JSON.parse(res.stdout.toString()) as {
+      ok?: boolean;
+      servers?: { alias?: string; name?: string; status?: string }[];
+    };
+    if (!parsed.ok) return [];
+    return (parsed.servers ?? [])
+      .map((s) => s.alias ?? s.name ?? "")
+      .filter((name) => name !== "");
+  } catch {
+    return [];
+  }
+}
 
 /** Stop walking up at a repo root, and never walk past $HOME. */
 function findProjectRoot(start: string): string {
@@ -162,7 +193,14 @@ async function main(): Promise<void> {
     facts.push(`Language-server MCP declared at this project root: ${servers.join(", ")}.`);
   }
 
-  // Nothing structural here. Emit nothing: a repo without this tooling should
+  const shim = mcpshimServers();
+  if (shim.length > 0) {
+    facts.push(
+      `MCP servers reachable only via the mcpshim CLI (not in the tool list or ToolSearch): ${shim.join(", ")}. Discover tools with \`mcpshim tools --server <alias>\`; call with \`mcpshim call --server <alias> --tool <name> --<arg> <value>\`.`,
+    );
+  }
+
+  // Nothing to report here. Emit nothing: a repo without this tooling should
   // pay zero context for the probe.
   if (facts.length === 0) process.exit(0);
 
