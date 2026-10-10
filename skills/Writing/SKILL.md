@@ -27,6 +27,8 @@ There is no single "Aaron's voice." The channels differ enough that an averaged 
 | `documents` | `~/.config/ndeko-os/identity/voice/documents.md` |
 | `directing-work` | `~/.config/ndeko-os/identity/voice/directing-work.md` |
 
+**Registers that overlay a channel.** If the text negotiates price, terms or concessions, also read `~/.config/ndeko-os/identity/voice/negotiation.md` after the channel profile; where they conflict, the overlay wins. A register has no numeric band, so VoiceCheck still measures against the channel, and its flags on such a draft need judgment.
+
 **Read the profile before drafting. Do not work from a summary of it, including one in this repo.** Profiles and the numeric bands (`identity/voice/thresholds.json`) live in the **data tree**; the measurements are the fingerprint and never enter this repo. This skill is the method, and the method is useless without the profile — if the data tree is missing, say so rather than improvising a voice.
 
 **If the channel is ambiguous, ask.** Drafting a Slack message in his email register is a worse failure than one extra question.
