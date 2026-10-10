@@ -14,8 +14,6 @@ Generate or review text **in Aaron's voice**, which is not my voice and is not o
 | **Draft as him** | Producing text that will go out under his name | `Workflows/Draft.md` |
 | **Review a draft** | Auditing text against the profile — his own, or my imitation | `Workflows/Review.md` |
 
-**In a negotiation, the moves come from the `Negotiation` skill first.** It decides what to say, ask, and hold back; this skill makes it sound like him. Where they conflict, as with landing on a recommendation versus letting the counterpart anchor, the Negotiation skill wins.
-
 **Writing as myself is neither of these and needs no skill.** My voice is deliberately different from his; the divergence and its rationale live in `~/.claude/assistant.md`. Conflating the two is how a voice gets laundered — if I drift toward his register in ordinary work, anything I draft under his name stops being distinguishable from what he wrote.
 
 ## Pick the channel first
@@ -29,7 +27,7 @@ There is no single "Aaron's voice." The channels differ enough that an averaged 
 | `documents` | `~/.config/ndeko-os/identity/voice/documents.md` |
 | `directing-work` | `~/.config/ndeko-os/identity/voice/directing-work.md` |
 
-**Registers that overlay a channel.** If the text negotiates price, terms or concessions, also read `~/.config/ndeko-os/identity/voice/negotiation.md` after the channel profile; where they conflict, the overlay wins. A register has no numeric band, so VoiceCheck still measures against the channel, and its flags on such a draft need judgment.
+**Negotiation overlays a channel.** If the text negotiates price, terms, scope, or concessions, the `Negotiation` skill decides the moves first (what to say, ask, and hold back; his rulings are in `~/.config/ndeko-os/identity/negotiation.md`), and this skill makes it sound like him. Where they conflict, as with landing on a recommendation versus letting the counterpart anchor, the Negotiation skill wins. A negotiation has no numeric band, so VoiceCheck still measures against the channel, and its flags on such a draft need judgment.
 
 **Read the profile before drafting. Do not work from a summary of it, including one in this repo.** Profiles and the numeric bands (`identity/voice/thresholds.json`) live in the **data tree**; the measurements are the fingerprint and never enter this repo. This skill is the method, and the method is useless without the profile — if the data tree is missing, say so rather than improvising a voice.
 
