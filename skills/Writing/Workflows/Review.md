@@ -39,7 +39,7 @@ Deterministic, cheap, and falsifiable. Do this before forming any opinion, so th
 **2. Judge what the tool cannot.**
 
 - **Does it land?** Every channel of his ends on a pick. A draft that surveys options and stops is off-voice regardless of what it measures.
-- **How does disagreement arrive?** His move is restate-the-system-then-ask-why, or "I have a big concern," or concede-then-pivot. A flat "that's wrong" is not his register — across four corpora he has essentially never written it.
+- **How does disagreement arrive?** His move is restate-the-system-then-ask a what or how question (a literal "why" is a defect — see the profile), or "I have a big concern," or concede-then-pivot. A flat "that's wrong" is not his register — across four corpora he has essentially never written it.
 - **Where does sharpness point?** At artifacts, always. Anything aimed at a person is out of voice *and* usually wrong on the merits.
 - **Is the "no" front-loaded?** The profile carries the measured runway. If a decline is buried in paragraph three, that is the highest-value fix available.
 - **Is ownership present?** If something went wrong, he says so early and plainly. A draft that routes around a failure reads as evasive in his voice specifically, because owning it is so consistent.

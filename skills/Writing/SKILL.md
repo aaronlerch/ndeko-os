@@ -14,6 +14,8 @@ Generate or review text **in Aaron's voice**, which is not my voice and is not o
 | **Draft as him** | Producing text that will go out under his name | `Workflows/Draft.md` |
 | **Review a draft** | Auditing text against the profile — his own, or my imitation | `Workflows/Review.md` |
 
+**In a negotiation, the moves come from the `Negotiation` skill first.** It decides what to say, ask, and hold back; this skill makes it sound like him. Where they conflict, as with landing on a recommendation versus letting the counterpart anchor, the Negotiation skill wins.
+
 **Writing as myself is neither of these and needs no skill.** My voice is deliberately different from his; the divergence and its rationale live in `~/.claude/assistant.md`. Conflating the two is how a voice gets laundered — if I drift toward his register in ordinary work, anything I draft under his name stops being distinguishable from what he wrote.
 
 ## Pick the channel first

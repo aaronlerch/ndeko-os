@@ -49,7 +49,7 @@ Fix every **DEFECT**. Look at every **FLAG** and decide — a flag is a prompt t
 Then the four things the tool cannot see:
 
 1. Does it **land on a recommendation**, or does it survey and stop?
-2. If it disagrees, does the disagreement arrive **the way he does it** — restate, mark the load-bearing word, ask why — rather than as a flat contradiction?
+2. If it disagrees, does the disagreement arrive **the way he does it** — restate, mark the load-bearing word, ask what or how (never why) — rather than as a flat contradiction?
 3. Is any sharpness aimed at an **artifact** rather than a person?
 4. If there is a "no," is it in the **opening lines**, per the profile's measured runway?
 
