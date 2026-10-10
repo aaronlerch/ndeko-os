@@ -33,6 +33,7 @@ People decide emotionally and justify rationally. The goal isn't winning an argu
 - **Loss aversion.** People take more risk to avoid a loss than to secure a gain. Frame what they lose by not agreeing.
 - **Deadlines are mostly arbitrary.** Theirs and yours.
 - **Ackerman model.** Set a target. Open at 65% of it, then move to 85%, 95%, and 100%, each concession smaller than the last, with empathy and "how am I supposed to do that?" between them. The final number is precise and non-round (37,893, not 38,000), and it comes with a non-monetary item to show you're at the limit.
+  - **When prices are public** (used cars, listed goods, posted rates), a 65% opener reads as unserious and ends the conversation. Open where the comparable listings defend it, step up in shrinking increments (for example +500, +300, +150), and keep the precise final number plus the non-monetary item. This adaptation is mine, not the book's.
 - **Non-monetary currency.** What do they value that's cheap for you to give? Scope, timing, references, case studies, terms.
 
 ## Black swans
