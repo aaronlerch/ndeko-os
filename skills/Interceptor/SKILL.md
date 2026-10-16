@@ -110,6 +110,14 @@ works, and that **moves focus** — it is one of the two explicit opt-in focus v
   not move and the app does not come forward. It is what `--trusted` uses on an
   unfocused browser window. Ask for it only alongside `click,type,keys`, and say what
   it means when you do.
+- **`mouse` moves Aaron's real pointer** (fork-local, for demo recordings):
+  `macos mouse move X,Y|<ref> [--ms 700] [--ease in-out|linear]` glides it and
+  returns the read-back position (`reached: true`); `macos click|drag … --glide`
+  travels there first and needs `mouse` *and* `click`. `mouse position` reads it.
+  `mouse hide|show` are refused — a background app cannot hide the pointer.
+  Recording a glide: **ffmpeg avfoundation does not draw the pointer on macOS 27
+  even with `-capture_cursor 1`**; `screencapture -v -C -V <s> out.mov` does.
+  *(2026-10-16)*
 - Domains this install deliberately keeps off: `intent` / `script` (arbitrary
   automation), `fs`, `vm`, `update`, and the personal-data stores.
 - **Enforcement is inside the bridge**, after every route has been normalized — the
