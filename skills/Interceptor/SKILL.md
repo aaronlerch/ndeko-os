@@ -1,7 +1,7 @@
 ---
 name: Interceptor
-description: "Real Chrome browser automation via Interceptor extension — controls the actual browser from inside (zero CDP fingerprint, passes all major bot detection checks including BrowserScan, Pixelscan, CreepJS, Fingerprint.com). Stays logged in, uses your real sessions. Compound commands (open, read, act, inspect) collapse multi-step flows into single calls. Unique capabilities: monitor/replay system (record user actions → export replayable plan scripts for regression), network log (auto-captures all fetch/XHR), scene graph for rich editors (Google Docs, Canva, Slides). Workflows: VerifyDeploy, Reproduce (open affected page BEFORE code analysis — mandatory per rules), RecordFlow, ReplayFlow, TestForm, Update. MANDATORY for all visual verification — never use agent-browser for deploy confirmation. USE WHEN verify deploy, confirm UI, check page, screenshot verification, interceptor, debug web, troubleshoot, visual check, authenticated page, bot detection bypass, agent-browser failing, reproduce bug, record flow, replay flow, test form, QA test, regression check. NOT FOR scraping at scale from rotating residential or geo-specific IPs — this harness has no proxy path, so say that out loud rather than substituting a weaker probe. (Batch IS supported: see `interceptor batch`.)"
-version: 2.1.0
+description: "Real Chrome browser automation via Interceptor extension — controls the actual browser from inside (zero CDP fingerprint, passes all major bot detection checks including BrowserScan, Pixelscan, CreepJS, Fingerprint.com). Stays logged in, uses your real sessions. Compound commands (open, read, act, inspect) collapse multi-step flows into single calls. Unique capabilities: monitor/replay system (record user actions → export replayable plan scripts for regression), network log (auto-captures all fetch/XHR), scene graph for rich editors (Google Docs, Canva, Slides). Owns this install's computer-use switch and allowlist (interceptor surface). Workflows: VerifyDeploy, Reproduce (open affected page BEFORE code analysis — mandatory per rules), RecordFlow, ReplayFlow, TestForm, Update. MANDATORY for all visual verification — never use agent-browser for deploy confirmation. USE WHEN verify deploy, confirm UI, check page, screenshot verification, interceptor, debug web, troubleshoot, visual check, authenticated page, bot detection bypass, agent-browser failing, reproduce bug, record flow, replay flow, test form, QA test, regression check, computer-use mode, surface_disabled, domain_not_allowed, allowlist. NOT FOR scraping at scale from rotating residential or geo-specific IPs — this harness has no proxy path, so say that out loud rather than substituting a weaker probe. (Batch IS supported: see `interceptor batch`.)"
+version: 2.2.0
 effort: medium
 ---
 
@@ -20,9 +20,10 @@ agent-browser uses CDP — sites can detect it, and it is not installed here in 
 
 ### Fork Deltas — we do NOT run upstream
 
-We track `Hacker-Valley-Media/Interceptor` but merge deliberately after review.
-Eight deltas, numbered to match `docs/FORK-DELTA.md`. All of them change what the
-CLI will do for you, so a command that works upstream can fail here by design.
+We track `Hacker-Valley-Media/Interceptor` but merge deliberately after review
+(last merged: upstream 2.1.3, 2026-10-16). Twelve deltas, numbered to match
+`docs/FORK-DELTA.md`. All of them change what the CLI will do for you, so a
+command that works upstream can fail here by design.
 
 1. **No iOS surface.** `interceptor ios …` does not exist here; the whole device
    subsystem was removed, along with a root LaunchDaemon whose control socket was
@@ -44,6 +45,17 @@ CLI will do for you, so a command that works upstream can fail here by design.
    a **1Password reference**, not a name — see "Credentials" below.
 8. **`net log` exports redact credential headers by default.** `--redact-auth` was
    upstream's opt-in; here it's the default and `--no-redact-auth` is the opt-out.
+9. **The daemon WebSocket is loopback-bound, peer-checked and Host-checked.** No web
+   page, LAN host, or DNS-rebound page can drive it.
+10. **Computer-use mode is a switch plus an allowlist, enforced inside the bridge.**
+    See "Computer-use mode" below. `desktop …` and `group prune` ride the same gate
+    as `macos …`; nothing reaches the bridge around it.
+11. **Read verbs mask passwords, card numbers, CVVs and one-time codes** as
+    `***SECURE***`, and keep a password masked after a show-password toggle.
+12. **Never install an update from Sparkle's window.** It installs the vendor build
+    over this one and silently reverts every delta here. `update_available` is
+    something to report to Aaron, not act on. Updates are a source merge
+    (`Workflows/Update.md`).
 
 Full record: `~/src/valid/interceptor/docs/FORK-DELTA.md`. Re-read it after any
 upstream merge — merging is the moment these can silently revert.
@@ -60,44 +72,63 @@ upstream merge — merging is the moment these can silently revert.
   which hardcodes the repo path). `which interceptor-daemon` returning nothing is
   the healthy state — check `pgrep -fl interceptor-daemon` instead. **Moving or
   renaming the repo breaks the browser leg** until step 5 of Update.md re-runs.
-- Native messaging manifest registered (`bash ~/src/valid/interceptor/scripts/install.sh --browser-only --chrome --skip-extension` — `--browser-only` keeps the bridge out; the macOS default `full` mode installs it)
-- (Optional, macOS) `interceptor-bridge` helper app — see "Bridge" section below
+- Native messaging manifest registered (`Workflows/Update.md` step 5)
+- For native-app work: the bridge installed and computer-use mode on — see below
 
-### Bridge — macOS Native Helper App
+### Computer-use mode — the bridge, the switch, and the allowlist
 
-The bridge is an optional Swift helper that runs as a LaunchAgent and unlocks
-capabilities the Chrome extension can't provide on its own: OS-level synthetic
-input (`act --trusted`), accessibility tree of native macOS apps, app control,
-clipboard, screen capture beyond Chrome, audio/speech, files, notifications,
-HealthKit, Apple Intelligence. ~95% of typical work doesn't need it.
+The bridge (`interceptor-bridge.app`, a LaunchAgent) is the Swift helper that holds
+macOS privacy grants and drives native apps: accessibility trees, window capture,
+OS-level and background input, clipboard, files, scripting. **It is installed and
+on here, narrowed to read-only work.** For the native command set, load the
+`interceptor-macos` skill; this section owns only what is specific to this install.
 
-**Status check:** `interceptor status` reports `bridge: running` with PID + socket
-when it's up, or `bridge: not running` when it isn't.
+**Check the state first:** `interceptor surface status` prints the mode, whether a
+bridge is present, and the allowlist. `interceptor status` shows `mode:` and the
+bridge pid.
 
-**Lifecycle (install / verify / troubleshoot / uninstall) lives entirely in
-`Workflows/Update.md` section 6.** Future updates flow through the Update
-workflow — never reach for the upstream `install-bridge.sh` directly; that
-script breaks on Apple Silicon (`/usr/local/bin` needs sudo, but sudoing the
-whole script makes `launchctl bootstrap` target uid 0 instead of the user).
-The skill's procedure is the canonical one.
+| Control | Effect |
+|---|---|
+| `interceptor surface browser-only` | All native control off. The bridge refuses everything but `trust`, and no daemon will launch one. |
+| `interceptor surface full` | Native control on, limited by the allowlist. |
+| `interceptor surface allow recommended` | **The default here.** Reads, window capture, on-device vision/NLP/AI only. |
+| `interceptor surface allow add click,type,keys` | Adds input, keeping what is already allowed. `allow remove …` takes it back. |
+| `interceptor surface allow <domains>` | **Replaces** the whole list — reach for `add`/`remove` instead. |
+| `interceptor surface allow none` / `all` | Deny every domain / permit every domain. |
 
-**Security model — read before installing:**
+The `recommended` set: `tree find inspect value focused windows text apps app
+frontmost screenshot capture display vision nlp ai sounds sensitive health translate
+detect thumbnail pdf log trust tcc`. Note `app` is in it, so `macos app activate`
+works, and that **moves focus** — it is one of the two explicit opt-in focus verbs.
 
-- Transport is a **UNIX domain socket** at `/tmp/interceptor-bridge.sock`.
-  Local-only; no network listener; not reachable from another machine.
-- **No authentication on the socket.** Any local process running as your user
-  can connect and execute every bridge action — including synthetic input,
-  clipboard read, audio capture, screenshots. macOS TCC permissions
-  (Accessibility, Input Monitoring, Screen Recording, Microphone) are granted
-  to the bridge once and inherited by every socket client.
-- **Marginal risk is supply-chain:** a malicious package installed via
-  bun/brew/npm gains a one-step path to OS-level input/screen/clipboard without
-  needing its own permission grants — the bridge has them.
-- Single-user Mac threat model: acceptable, since anything running as you can
-  already do this with effort. Multi-user Macs need socket hardening (see
-  Update.md section 6c).
-- Binary built locally from `~/src/valid/interceptor/interceptor-bridge/Sources/`,
-  not a downloaded prebuilt. Provenance is Swift source we just compiled.
+- **Changing the mode or the allowlist is Aaron's call, not yours.** When a command
+  fails with `surface_disabled` or `domain_not_allowed`, stop and tell him the exact
+  `surface` command the error names. Do not enable it yourself to get unblocked,
+  and never reach for `allow all`. Narrow beats broad: name the domains the task
+  needs.
+- **`bginput` is full input to any window in any app, invisibly** — the cursor does
+  not move and the app does not come forward. It is what `--trusted` uses on an
+  unfocused browser window. Ask for it only alongside `click,type,keys`, and say what
+  it means when you do.
+- Domains this install deliberately keeps off: `intent` / `script` (arbitrary
+  automation), `fs`, `vm`, `update`, and the personal-data stores.
+- **Enforcement is inside the bridge**, after every route has been normalized — the
+  CLI, the daemon, background input, a direct socket write, and App Intents all
+  stop at the same check. A refusal is the design working; there is no flag
+  around it (`--all-surfaces` and `INTERCEPTOR_ALL_SURFACES` do not beat the
+  bridge).
+- **The bridge socket has no caller authentication.** Anything running as Aaron can
+  use every allowlisted domain with the bridge's grants. That is why the allowlist is
+  narrow and why it, not the grants, is the control.
+- **macOS 27 renamed the Accessibility pane** to Privacy & Security → **Device
+  Control and Data Access**. Screen Recording is still **Screen & System Audio
+  Recording**. `interceptor macos trust` reports both grants; giving a grant is
+  Aaron's step — stop and give him the exact clicks.
+- **The bridge is signed with a local self-signed identity**, so grants survive
+  rebuilds. If grants ever reset after a rebuild, the build fell back to ad-hoc
+  signing — see `Workflows/Update.md` step 6.
+
+Install, signing, grants, verification and uninstall: `Workflows/Update.md` step 6.
 
 ---
 
@@ -113,7 +144,7 @@ interceptor read <ref>                               # Tree + text for element s
 interceptor read --include-style|--include-frames
 interceptor act <ref>                                # Click + wait + return updated tree + diff
 interceptor act <ref> "value"                        # Type + wait + return updated tree
-interceptor act <ref> --trusted                      # HID-sourced trusted input, page sees isTrusted:true (requires bridge)
+interceptor act <ref> --trusted                      # OS-level trusted input via the bridge (needs click/type/keys allowed; bginput for an unfocused window)
 interceptor act <ref> --keys "Enter"                 # Send keyboard shortcut
 interceptor inspect                                  # Tree + text + network log + headers
 interceptor inspect --net-only                       # Network only
@@ -215,8 +246,6 @@ interceptor macos secret status                                 # op binary + si
   call carries a deadline (`INTERCEPTOR_OP_TIMEOUT_MS`). If it fires, bring 1Password
   to the front and approve — do not go debugging the extension leg.
 
-`interceptor help type` still prints a stale upstream line offering `--secret <name>`
-("a vault secret by name"). That store does not exist here. Ignore the line.
 
 ## Network
 
@@ -228,8 +257,9 @@ interceptor net log --format har --out <path> --no-redact-auth   # keeps credent
 interceptor net headers [--filter <pat>]   # CSRF, auth headers
 interceptor net clear
 
-# Request override (passive, no CDP)
-interceptor override "*pattern*" key=value
+# Request override (passive, no CDP). Set it after the page loads — it lives in that page.
+interceptor override "*pattern*" key=value                       # rewrite query params
+interceptor override "*pattern*" --status 500 [--body <text>] [--content-type <t>] [--delay <ms>]   # answer locally, no request sent
 interceptor override clear
 
 # CDP-attached interception (explicit opt-in — leaves debugger banner)
@@ -328,8 +358,24 @@ interceptor group list                   # All live groups: label, title, color,
 interceptor group close <label>          # Atomically close one group; others untouched
 ```
 
-Without `--group`, requests share the single ungrouped auto-target — fine for one
-agent, a race for several.
+Agent shells get a soft per-session group automatically; concurrent lanes still
+need a unique `--group` or `INTERCEPTOR_SESSION_ID`.
+
+**Stay out of Aaron's window.** He is working on the same Mac in the same browser.
+Rendering problems in a hidden tab have background answers — reach for them before
+any focus move:
+
+```bash
+interceptor tab keepalive <id>           # hidden tab reads as visible, runs animation frames
+interceptor window new [url]             # your group moves into its own background window
+interceptor tab switch <prior-id>        # allowed once, only to put back the tab he was on
+```
+
+`interceptor group prune [--dry-run] [<label>…]` deletes closed saved groups
+Interceptor left on the bookmarks bar by clicking through the browser's own UI. A
+delete **syncs to every device and cannot be undone**: run `--dry-run` first, and run
+the real thing only when Aaron asks. It needs computer-use mode with `tree`, `click`
+and `action` allowed.
 
 ## Batch + Meta
 
@@ -347,9 +393,11 @@ interceptor help [<command>]
 - **Requires Chrome running** — it's an extension, not a standalone binary.
 - **Refs use eN syntax** — `e12` not `@e12`. No `@` prefix.
 - **Cross-frame refs** — `read --include-frames` returns refs like `e<frameId>_<n>` for non-top frames.
-- **`--json`** is a global flag for structured output.
+- **Plain text output is the default and the one to read.** `--json` is for piping
+  into a script; it costs more tokens and reads worse.
 - **Daemon auto-starts** — first command launches it; no manual start needed.
-- **Bridge is optional** — only needed for `act --trusted` and OS-trusted input. Without it, interceptor falls back to in-page synthetic events.
+- **Synthetic input is the default** for page content and needs no bridge. `--trusted`
+  is the escalation, and it rides the bridge's allowlist.
 
 ## Delegating to Agents
 
@@ -357,18 +405,21 @@ When spawning agents for Interceptor work:
 
 ```
 Agent(subagent_type="general-purpose", prompt="
-  Use interceptor CLI for all browser work.
+  Use interceptor CLI for all browser work; load the interceptor-browser skill
+  (and interceptor-macos for native apps).
   Commands: open <url>, read, act eN, act eN 'text', inspect, screenshot.
   Compound commands preferred — they return tree + text in one call.
-  Refs use eN syntax (no @ prefix) from tree output.
-  Use --json for structured output.
+  Refs use eN syntax (no @ prefix) from tree output. Read plain-text output.
+  Use --group <your-label> so you never touch another lane's tabs.
+  If a command returns surface_disabled or domain_not_allowed, stop and report
+  the surface command it names — do not change the mode or allowlist.
   [your specific task instructions here]
 ")
 ```
 
 ## Gotchas
 
-- **Every command prepends a skill-pack hint to stdout.** `hint: Interceptor skill packs are not fully linked into your AI runtimes … Run 'interceptor skills adopt'` rides along on every invocation. It is expected — upstream ships four `.agents/skills/interceptor-*` packs and we deliberately run **this** skill instead, so `0/4 linked` is the intended state, not a broken install. **Do not run `interceptor skills adopt`**: it writes upstream-authored instructions into `~/.claude/skills/`, and those still tell agents to use `macos secret register`, `authdialog fill`, and `interceptor macos sudo` — all removed here (fork deltas §5–§7). Pass `--no-skills-hint` when parsing output. *(2026-09-06)*
+- **The `interceptor-browser`, `interceptor-macos` and `interceptor-research` skills are the fork's own, generated for macOS.** `scripts/build.sh` writes them to `dist/skills`; `~/.claude/skills/interceptor-*` link there. They are the command reference — this skill carries the house rules on top. The repo's `.agents/skills/` are *sources* with Windows/Linux lines and OS markers: never link those directly. After a build, `interceptor skills adopt --into claude --force` refreshes the links. `claude/interceptor: name-collision` in `skills status` is expected — this `Interceptor` skill holds that name. *(2026-10-16; supersedes the 2026-09-06 "never adopt" rule, written when those skills still taught the removed credential verbs.)*
 - **Screenshot ignores scroll position.** `interceptor screenshot` (with or without `--full`) captures from y=0 of the document — it does not honor `window.scrollTo`, `scrollIntoView`, `scroll bottom`, or `keys End`. For tall pages, content below the fold is unreachable through screenshot. Workaround: render the section of interest at its own short URL (`/problems.html`, `/section-3.html`) and screenshot that page directly. The `--clip "x,y,w,h"` flag returns "Cannot read properties of undefined" — broken in the current build. *(2026-04-27)*
 - **`--clip` is broken but `--region` and `--selector` are NOT — reach for those instead.** `interceptor help screenshot` lists `--clip` as a deprecated alias for `--region`; the alias is what's broken, the real flag works. `--region X,Y,W,H` crops any band of a tall page (coordinates are full-page document pixels — the same space `--full` captures in), and `--selector "figure.foo"` / `--element N` capture one element directly, off-screen ones included. `--scale 2` gets retina detail for inspecting type and 1px strokes. Don't fall back to re-rendering sections at separate URLs — that workaround predates these flags. *(2026-08-06)*
 - **An element screenshot composites without the page background.** `--selector` returns the element over a transparent/white backdrop, so a dark-theme capture shows correct element fills against a *light* surround — and any `paint-order` knockout or background-colored halo renders as a visible dark blob that does not exist on the real page. Judge theme correctness from `--region` (which includes `body`), never from `--selector`. *(2026-08-06)*
@@ -380,7 +431,7 @@ Agent(subagent_type="general-purpose", prompt="
 - **`eval` is CSP-blocked on most sites.** Use `eval --main` to run in the page's main world instead of the isolated extension world. Interceptor automatically escalates *within* the page's policy first (userScripts world, then an ISOLATED retry), which clears most strict-CSP and Trusted-Types sites on its own. Pass small expressions only and avoid `Function`-constructor patterns.
 - **`error: … Stripping the page's CSP header would disable the site's own XSS defenses` is a deliberate refusal, not a bug.** When a page defeats every in-policy path, the last resort is removing its `content-security-policy` response header for the tab and reloading. Our fork does **not** do that automatically (upstream does). Re-run with `--allow-csp-strip` if you genuinely intend it — and understand what it costs: the site loses its own XSS protection on that tab for as long as the session rule lives, which matters most on exactly the pages you're logged into. Prefer restructuring the expression first. Applies to `interceptor save` too. *(fork delta — see `docs/FORK-DELTA.md`)*
 - **Heavy-DOM pages can wedge the extension leg.** On pages with very large trees (admin inspectors with accordions + wide data tables), `extract_text`/`find_element`/`evaluate` can time out repeatedly and the extension may drop to `no extensions connected`; light pages on the same origin keep working. Verify heavy pages with a targeted `find` right after a fresh navigate, and if 2-3 calls time out, stop — the extension usually reconnects after ~30s idle; don't loop retries. *(2026-07-30)*
-- **Zombie daemons cause a persistent `no extensions connected` split-brain that never self-heals.** Daemon exit handlers unlink `/tmp/interceptor.pid` + `/tmp/interceptor.sock` unconditionally — even when a NEWER daemon owns them — and relay election is pid-file-only, so kills and races accumulate stale `--standalone` daemons. A zombie that still answers the extension's pings keeps its keepalive green, so the extension NEVER reconnects to the live daemon, no matter how long you wait. **Diagnosis:** `pgrep -fl interceptor-daemon` — healthy is exactly 2 processes (one `--standalone`, one `chrome-extension://…` relay); 3+ means split-brain. **Recovery (no Chrome restart needed):** (1) `pkill -f "daemon/interceptor-daemon"`, (2) `sleep 2` to let exit handlers finish unlinking, (3) immediately run `interceptor status` so the CLI spawns the singleton and writes the pid file BEFORE the extension's backoff reconnect lands, (4) poll `interceptor tabs` — the respawned relay reads the pid file and attaches instead of spawning a competitor. Do NOT `rm` the socket/pid files after a delay (the reconnected pair may already own them) and do NOT kill only some daemons (any dying daemon deletes the survivor's runtime files). *(2026-08-02)*
+- **Zombie daemons cause a persistent `no extensions connected` split-brain that never self-heals.** Daemon exit handlers unlink the runtime pid + socket files (`$TMPDIR/interceptor.{pid,sock}` since 2.x; `/tmp/` before) unconditionally — even when a NEWER daemon owns them — and relay election is pid-file-only, so kills and races accumulate stale `--standalone` daemons. A zombie that still answers the extension's pings keeps its keepalive green, so the extension NEVER reconnects to the live daemon, no matter how long you wait. **Diagnosis:** `pgrep -fl interceptor-daemon` — healthy is exactly 2 processes (one `--standalone`, one `chrome-extension://…` relay); 3+ means split-brain. **Recovery (no Chrome restart needed):** (1) `pkill -f "daemon/interceptor-daemon"`, (2) `sleep 2` to let exit handlers finish unlinking, (3) immediately run `interceptor status` so the CLI spawns the singleton and writes the pid file BEFORE the extension's backoff reconnect lands, (4) poll `interceptor tabs` — the respawned relay reads the pid file and attaches instead of spawning a competitor. Do NOT `rm` the socket/pid files after a delay (the reconnected pair may already own them) and do NOT kill only some daemons (any dying daemon deletes the survivor's runtime files). *(2026-08-02)*
 - **A screenshot's pixel width is NOT its viewport width.** Headless Chrome's `--window-size=390,1600` produced a 390x1600 PNG whose actual `document.documentElement.clientWidth` was **500** — so the capture was a 390-wide *crop* of a 500-wide layout, showing clipped text on every line and reading as a genuine horizontal-overflow bug. Never conclude "the mobile layout overflows" from a narrow screenshot alone. Assert the viewport (`Emulation.setDeviceMetricsOverride` with `{width, height, deviceScaleFactor, mobile:true}` over CDP), then read `clientWidth`/`scrollWidth` back before trusting any layout conclusion. *(2026-08-03)*
 - **When the extension leg wedges, CDP is the fallback — don't defer the criterion.** After ~6 consecutive `evaluate`/`navigate`/`screenshot` timeouts (extension alive enough to answer `tabs`), launching Chrome with `--headless=new --remote-debugging-port=N --user-data-dir=/tmp/...` and driving `Runtime.evaluate` / `Page.captureScreenshot` / `Runtime.consoleAPICalled` over a raw WebSocket from bun gave full measurement, screenshots, and console capture with no extension involved. A wedged tool is evidence about the tool, never about the thing being verified. *(2026-08-03)*
 

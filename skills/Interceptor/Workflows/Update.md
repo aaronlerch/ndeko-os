@@ -20,29 +20,45 @@ Working branch is **`my-install`**. There is no `valid/main` branch — the name
 appears in `docs/FORK-DELTA.md` as a label for this line of work, not as a ref.
 
 **Never `git reset --hard origin/main`.** That resets to the fork point and
-destroys all eight fork deltas. If a working tree needs cleaning, reset to
+destroys every fork delta. If a working tree needs cleaning, reset to
 `origin/my-install`.
 
 ## Steps
 
-### 1. Fetch upstream
+### 1. Fetch upstream, review, merge
 
 ```bash
 cd ~/src/valid/interceptor && git fetch upstream && git status -uno
-git log --oneline my-install..upstream/main        # what's new upstream
+git log --oneline --no-merges my-install..upstream/main     # what's new upstream
 ```
 
-A merge is a **reviewed** operation, not a fast-forward. Before merging, work
-through the merge checklist at the bottom of `docs/FORK-DELTA.md` — in particular
-reviewing the `.agents/skills/**` and `.agents/rules/**` diffs, which are agent
-instructions rather than docs, and re-scanning `extension/dist-mv2/*.js` for new
-remote hosts. After merging, confirm every fork-delta guard still holds:
+A merge is a **reviewed** operation, not a fast-forward. The 2.1.3 merge
+(2026-10-16) is the template:
+
+1. **Security-review the upstream diff in slices** before merging — daemon/shared,
+   extension, bridge, scripts/CI, CLI + agent skills — read-only, via
+   `git diff <merge-base> upstream/main -- <paths>`. Ask each slice two questions:
+   is anything malicious or egress-y, and **does any new code path reach the bridge
+   without passing the surface gate?** Upstream adds those routinely (2.1.3 added
+   four). The Swift Router is the backstop, but every new route gets a guard too.
+2. **Merge in a separate worktree** (`git worktree add -b merge/upstream-<v> ../Interceptor-merge-<v> my-install`),
+   resolve, and work the merge checklist at the bottom of `docs/FORK-DELTA.md`.
+   Cut surfaces stay cut on every modify/delete conflict: iOS, sudo, authdialog, the
+   keychain vault, browser saved-login fill.
+3. **Building in that worktree produces a launchable `dist/interceptor-bridge.app`.**
+   Keep `~/.interceptor/mode` at `browser-only` while it exists, and
+   `git worktree remove` it once merged.
+4. Gate the merge:
 
 ```bash
-bun run typecheck && bun test
+bun run typecheck && bun test ./test/ ./extension/src
 bash scripts/audit-capability-blind.sh
-git grep -n 'runSudo\|macos_sudo\|authdialog\|BunSecretsVault\|secrets.json'   # must be empty
+git grep -n 'runSudo\|macos_sudo\|BunSecretsVault\|secrets.json\|browser-creds' -- cli daemon shared   # must be empty
+git ls-files | grep -E '(^|/)ios(/|-)|interceptor-ios'                                              # must be empty
 ```
+
+Swift XCTest needs full Xcode, which this Mac does not have: prove the bridge gate
+live instead (step 6d).
 
 ### 2. Install New Dependencies
 
@@ -63,7 +79,8 @@ Produces:
 - `dist/interceptor` — CLI
 - `daemon/interceptor-daemon` — native messaging host
 - `extension/dist/` — Chrome extension (manifest reflects upstream version)
-- `dist/interceptor-bridge` — Swift binary for OS-level input simulation (macOS only, optional)
+- `dist/interceptor-bridge.app` — the bridge, signed with the local identity (installed by step 5)
+- `dist/skills/` — this Mac's generated agent skills (`~/.claude/skills/interceptor-*` link here)
 
 ### 4. Install Binaries — nothing to do
 
@@ -84,179 +101,122 @@ ls -l ~/.local/bin/interceptor          # → …/src/valid/interceptor/dist/int
 interceptor --version --no-skills-hint
 ```
 
-### 5. Re-register Native Messaging
+### 5. Install (native messaging + bridge)
 
 ```bash
-cd ~/src/valid/interceptor && bash scripts/install.sh --browser-only --chrome --skip-extension
+cd ~/src/valid/interceptor && bash scripts/install.sh --full --chrome --skip-extension
 ```
 
-**`--browser-only` is mandatory if you don't want the bridge.** On macOS,
-`install.sh` defaults to `full` mode, which chains into the bridge installer
-(LaunchAgent + a zero-auth `/tmp` socket with keystroke/screen/clipboard/audio
-grants — see step 6's security model). `--skip-extension` does NOT prevent this;
-it only skips extension auto-load. This local install is intentionally
-browser-only, so always pass `--browser-only`.
+- `--full` installs the bridge app to `~/.local/share/interceptor/interceptor-bridge.app`
+  with a LaunchAgent, no sudo. Whether native control is *on* is the surface switch
+  (step 6), not the install mode.
+- `--skip-extension` is required on current Chrome: the installer cannot read the
+  Developer-mode setting and reports it OFF when it is on. The extension is already
+  loaded unpacked from `extension/dist`; reload it in step 7.
+- The script regenerates the native-messaging manifest with the repo's daemon path —
+  re-run it after moving the repo.
 
-`--skip-extension` is the right path for Chrome — branded Chrome ignores
-`--load-extension` anyway, and the extension reload is a manual step (see
-"Extension Reload" below). The script regenerates
-`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.interceptor.host.json`
-with the current allowed extension IDs (it reads the daemon path from this repo's
-location, so don't move the repo without re-running this step).
+### 6. Computer-use mode — signing, switch, allowlist, grants
 
-### 6. (Optional) Bridge — macOS Native Helper App
+#### 6a. Signing (once per certificate)
 
-The bridge is the macOS-native helper that gives Interceptor capabilities the
-Chrome extension cannot provide on its own. Documented end-to-end here so the
-skill owns the full lifecycle — install, verify, security model, troubleshoot,
-uninstall — without referencing the upstream README.
+`scripts/build-bridge.sh` signs with the local self-signed identity
+**"Interceptor Local Signing"** when it exists (`--timestamp=none`). The bridge's
+designated requirement is then `identifier "com.interceptor.bridge" and certificate
+leaf = H"…"`, stable across rebuilds, so privacy grants survive them.
 
-**What it adds (35 actions across 23 domains):** OS-level synthetic input
-(`act --trusted` keystrokes/mouse/scroll/drag), accessibility tree of native macOS
-apps, app control, screen capture beyond Chrome, clipboard read/write, audio
-listen + speech recognition, file ops, system notifications, vision, NLP,
-Apple Intelligence, HealthKit access, display info, monitor (event subscription).
+- Healthy build output: `Codesigning bundle with: Interceptor Local Signing (--timestamp=none)`.
+  `ad-hoc sign` instead means the identity was not found — every grant resets.
+- Check: `codesign -d -r- ~/.local/share/interceptor/interceptor-bridge.app`.
+- The certificate expires a year after creation. Recreating it (Keychain Access →
+  Certificate Assistant → Create a Certificate: that exact name, Self Signed Root,
+  Code Signing) changes the leaf hash, so the grants are given once more.
 
-**Skip the bridge entirely if** all you do is in-page web automation — the
-extension covers ~95% of typical work without it.
-
-#### 6a. Install (use this procedure, not upstream `install-bridge.sh`)
-
-The upstream script breaks on Apple Silicon: `/usr/local/bin` requires sudo,
-but invoking the whole script with sudo makes `launchctl bootstrap "gui/$(id -u)"`
-target uid 0 instead of the user. Three commands handle it correctly:
+#### 6b. Switch and allowlist
 
 ```bash
-# 1. Binary into /usr/local/bin (needs sudo — root:wheel 755)
-sudo cp ~/src/valid/interceptor/dist/interceptor-bridge /usr/local/bin/interceptor-bridge
-sudo chmod +x /usr/local/bin/interceptor-bridge
-
-# 2. Write LaunchAgent plist into $HOME (no sudo)
-cat > ~/Library/LaunchAgents/com.interceptor.bridge.plist <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key><string>com.interceptor.bridge</string>
-    <key>ProgramArguments</key><array><string>/usr/local/bin/interceptor-bridge</string></array>
-    <key>RunAtLoad</key><true/>
-    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
-    <key>StandardOutPath</key><string>/tmp/interceptor-bridge.stdout.log</string>
-    <key>StandardErrorPath</key><string>/tmp/interceptor-bridge.stderr.log</string>
-    <key>ThrottleInterval</key><integer>5</integer>
-</dict>
-</plist>
-PLIST
-
-# 3. Load it as the user (no sudo — uid is captured at script-call time)
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.interceptor.bridge.plist
+interceptor surface status
+interceptor surface allow recommended        # before enabling; the standing default
+interceptor surface full                     # or: browser-only
+interceptor surface allow add click,type,keys    # only when Aaron asks
 ```
 
-`launchctl bootstrap` exits 1 on success (its diagnostic output is on stderr) —
-that's fine; verify with the next step.
+Mode and allowlist changes are Aaron's decisions. `allow <domains>` replaces the
+list; `allow add|remove` edit it.
 
-#### 6b. Verify
+#### 6c. Grants — Aaron's step
+
+Stop and give the exact clicks; do not proceed on an assumed grant.
+
+1. **System Settings → Privacy & Security → Device Control and Data Access** (macOS 27's
+   name for Accessibility). Remove stale `interceptor-bridge` rows (−), then **+**,
+   ⌘⇧G, `~/.local/share/interceptor/interceptor-bridge.app`, Open, toggle on.
+2. **Privacy & Security → Screen & System Audio Recording** — same app, toggle on.
+
+Then `launchctl kickstart -k gui/$(id -u)/com.interceptor.bridge` and
+`interceptor macos trust` must show both `granted`.
+
+#### 6d. Verify the gates live
 
 ```bash
-launchctl list | grep com.interceptor.bridge   # → expect: <PID>  0  com.interceptor.bridge
-ls -la /tmp/interceptor-bridge.sock            # → expect: srwxr-xr-x <user> staff
-interceptor status                              # → expect: bridge: running with pid + socket
+interceptor macos apps                       # allowlisted read → app list
+interceptor macos click 5,5                  # → domain_not_allowed (until click is added)
+interceptor macos tree --pid <pid>           # AX read; `--app X --depth 2` can return empty
+interceptor macos screenshot --pid <pid> --save
 ```
 
-If `interceptor status` shows `bridge: not running` despite launchctl listing
-the agent, the helper crashed on startup — check `/tmp/interceptor-bridge.stderr.log`.
+In browser-only mode, a direct write to the bridge socket must come back
+`surface_disabled` for every domain but `trust` — that is the bridge-side proof the
+unit tests cannot give on this Mac.
 
-#### 6c. Security model — read this before you install
+#### 6e. Security model
 
-Honest disclosure, not reassurance:
+- The bridge socket (`$TMPDIR/interceptor-bridge.sock`, per-user 0700 directory)
+  **authenticates no caller**: anything running as Aaron can use every allowlisted
+  domain with the bridge's grants. The allowlist is the control.
+- The switch and allowlist are enforced in the Swift Router after every route is
+  normalized, and again in the daemon and CLI. In browser-only mode no daemon
+  launches a bridge.
+- Sparkle auto-check is off. **Never press Install Update** — it installs the vendor
+  build over this one.
 
-- **Transport is a UNIX domain socket** at `/tmp/interceptor-bridge.sock` — local
-  only, no network listener. Cannot be reached from another machine.
-- **There is ZERO authentication on the socket.** `Transport.swift` accepts any
-  client connection and processes any framed JSON payload. The socket is created
-  with mode `755` (the default umask result), meaning **any local process — your
-  shell scripts, any installed app, anything you run as your user — can connect
-  and execute every bridge action.**
-- **Action surface includes:** synthetic keystrokes/mouse, screenshots, clipboard
-  read/write, audio capture/listen, file ops, system notifications, accessibility
-  tree of every running app. macOS will prompt for Accessibility / Input
-  Monitoring / Screen Recording / Microphone the first time those are exercised;
-  once granted, every client of the socket inherits them.
-- **Threat model on a single-user Mac:** anything running as you can already
-  keylog you and read your clipboard with sufficient effort. The bridge makes
-  this scriptable from anything that can write to `/tmp`. The marginal risk is
-  supply-chain — a malicious package installed by `bun`, `brew`, or `npm` no
-  longer needs its own Accessibility grant; the bridge has the grants for it.
-- **Multi-user Macs:** the socket's `o+rx` bit means other local users can
-  connect. If this matters, harden by either (a) running the bridge with a
-  restrictive umask, or (b) adding a `chmod 700` of the socket as a post-start
-  hook in the plist. the principal's Mac is single-user; not addressed here.
-- **Binary provenance:** built locally from the Hacker-Valley-Media/Interceptor source we just
-  pulled. Not a downloaded prebuilt — provenance is the Swift source under
-  `~/src/valid/interceptor/interceptor-bridge/Sources/`.
-
-#### 6d. Troubleshoot
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `launchctl bootstrap` says "service already loaded" | Prior install lingering | `launchctl bootout "gui/$(id -u)/com.interceptor.bridge"` then re-bootstrap |
-| `interceptor status` shows bridge not running | First-action TCC prompt blocked | Trigger any `act --trusted` once, accept macOS prompts in System Settings → Privacy & Security |
-| Socket exists but writes fail | macOS quarantine on the binary | `xattr -d com.apple.quarantine /usr/local/bin/interceptor-bridge` |
-| Bridge restart-loops every ~5s | Crash on launch | `tail /tmp/interceptor-bridge.stderr.log`; usually missing entitlement or unsigned-binary block |
-
-#### 6e. Uninstall
+#### 6f. Uninstall
 
 ```bash
+interceptor surface browser-only
 launchctl bootout "gui/$(id -u)/com.interceptor.bridge"
 rm ~/Library/LaunchAgents/com.interceptor.bridge.plist
-sudo rm /usr/local/bin/interceptor-bridge
-rm -f /tmp/interceptor-bridge.sock /tmp/interceptor-bridge.pid
-rm -f /tmp/interceptor-bridge.stdout.log /tmp/interceptor-bridge.stderr.log
+rm -rf ~/.local/share/interceptor/interceptor-bridge.app ~/.local/bin/interceptor-bridge
 ```
 
-Optional: revoke macOS permissions in System Settings → Privacy & Security
-(Accessibility, Input Monitoring, Screen Recording, Microphone, etc.) by
-removing the `interceptor-bridge` entry from each list.
+Then remove the `interceptor-bridge` rows from both Privacy & Security panes.
 
-### 7. Extension Reload (manual — Chrome won't auto-refresh unpacked extensions)
+### 7. Extension reload and skills refresh
 
-If `extension/dist/manifest.json` changed (especially `version` or `key`):
+```bash
+interceptor contexts                         # context id
+interceptor reload --context <id>
+interceptor diagnose | grep 'extension:'     # → unpacked extension <version> via ws
+interceptor skills adopt --into claude --force   # relink the generated dist/skills
+```
 
-1. Open `chrome://extensions`, enable Developer Mode
-2. **Delete** the existing Interceptor card (don't just hit reload — if the
-   manifest `key` changed, the extension ID changed and the old card is dead)
-3. **Load unpacked** → `~/src/valid/interceptor/extension/dist`
-4. Quit Chrome fully (⌘Q, not just close window) and relaunch — service worker
-   needs a clean restart, especially with `userScripts` permission added
-5. Accept any new permission prompts (e.g. `userScripts`)
-
-If only JS/HTML inside `extension/dist/` changed (no manifest changes),
-clicking the reload arrow on the existing card is enough.
+`reload` picks up rebuilt files in `extension/dist`. Only a changed manifest `key`
+needs the card deleted and re-loaded by hand (the extension ID changes).
 
 ### 8. Verify
 
 ```bash
-interceptor status
-interceptor open "https://example.com"
+interceptor status                           # mode + daemon + bridge
+interceptor open "https://example.com"       # tree + text from a background tab
 ```
 
-In browser-only mode, `status` reports `mode: browser-only` and a `daemon` line
-(no bridge line — that's expected). Use `interceptor status --verbose` to also
-probe extension reachability, or `interceptor init` for a full preflight.
-`open` should return tree + extracted text.
-
-If the extension console shows `WebSocket connection to 'ws://localhost:19222/'
-failed: ERR_CONNECTION_REFUSED`, the daemon simply wasn't running when the
-extension loaded (port 19222 is the daemon's WS server). The daemon auto-starts
-on any `interceptor` command — run `interceptor status` and the extension
-reconnects on its own. No reload needed.
+`status` healthy does not prove the browser leg — the `open` round-trip does.
 
 ## Notes
 
 - Native messaging manifest's `allowed_origins` is regenerated by `install.sh` —
-  the current build allows three extension IDs including the keyed
-  `hkjbaciefhhgekldhncknbjkofbpenng` (the deterministic ID baked in by
-  `extension/manifest.json`'s `key` field).
+  it allows the keyed `hkjbaciefhhgekldhncknbjkofbpenng`, which is **this fork's own**
+  extension ID (`extension/manifest.json`'s `key`), not a stale dev copy.
 - Force-push from upstream is normal — `Hacker-Valley-Media/Interceptor` rewrites main on releases
   (v0.5.0 → v0.8.0 was a single force-push touching 155 files).
 - `extension/src/content/data/extract.ts` extract limits now default to
