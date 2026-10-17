@@ -35,18 +35,17 @@ bridge-spawn/
 .claude.json.backup
 backups/
 projects/
-plugins/cache/
-plugins/data/
-plugins/marketplaces/
-plugins/*.json
-# Plugin diff/state store the harness writes on startup (appeared 2026-10-01).
-plugins/store/
-# The server-side skill and plugin sync cache. Keyed by an account/org bucket
+# The whole plugins/ tree is harness-owned: install cache, marketplaces, the
+# sync cache, a startup state store, and (2026-10-17) `.trash/`, where the
+# harness parks superseded plugin versions — company plugin content, 225 files
+# of it. It was ignored one subdirectory at a time, and every new one the
+# harness invented showed up dirty. Nothing in it is harness source.
+plugins/
+# The server-side skill sync cache. Keyed by an account/org bucket
 # (`<uuid>_<uuid>/`), refilled by the harness on every sync, and holding
 # org-library content that belongs to the org rather than to this repo. A
 # blanket `git add -A` swept 222 of these files into the index on 2026-09-18,
 # which is how they were found.
-plugins/synced/
 skills/synced/
 # Where the harness parks synced skills it stops loading (2026-10-08).
 skills/.trash/
@@ -55,6 +54,8 @@ statsig/
 todos/
 history.jsonl
 remote-settings.json
+# Its sync timestamp, written beside it (appeared 2026-10-17).
+remote-settings.json.synced-at
 policy-limits.json
 # Sibling of the above. `policy-limits.json` was ignored; this stamp was not,
 # and it carries an org identity hash -- data-shaped, so it stays local.
