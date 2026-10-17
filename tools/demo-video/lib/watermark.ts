@@ -18,7 +18,6 @@
  * Applied at assembly, so `--assemble-only` and `--renarrate` re-render with
  * or without it and no take ever needs repeating to change it.
  */
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -87,10 +86,7 @@ export async function renderWatermark(
 ): Promise<string> {
   // ~2% of frame height: legible at 1080p, unobtrusive at 900.
   const font = Math.max(12, Math.round(height * 0.02));
-  const key = createHash("sha256")
-    .update(JSON.stringify([text, font]))
-    .digest("hex")
-    .slice(0, 12);
+  const key = Bun.hash(JSON.stringify([text, font])).toString(16);
   const path = join(dir, `watermark-${key}.png`);
   if (existsSync(path)) return path;
   await mkdir(dir, { recursive: true });
