@@ -38,10 +38,24 @@ export type Action =
   | { scrollTo: string; onlyIfNeeded?: boolean; ms?: number }
   /** Block until the URL matches this regular expression source. */
   | { awaitUrl: string }
-  /** Block until this target is visible. */
-  | { awaitText: string }
+  /**
+   * Block until this target is visible. `timeout` (seconds, default 30) is for
+   * a wait that is slow by nature — a model's turn, a render — which belongs
+   * in a `cut` segment so the wait never reaches the tape.
+   *
+   * `meanwhile` runs `do` whenever `when` appears during the wait — for a
+   * model that may or may not stop to ask something on the way to the thing
+   * being awaited. The awaited target is checked first on every pass.
+   */
+  | { awaitText: string; timeout?: number; meanwhile?: Meanwhile }
   /** Hold still for N seconds. */
   | { wait: number };
+
+/** Steps an `awaitText` runs each time `when` shows up during its wait. */
+export interface Meanwhile {
+  when: string;
+  do: Action[];
+}
 
 /** A narration beat plus whatever happens on screen while it plays. */
 export interface Segment {
@@ -51,6 +65,12 @@ export interface Segment {
   say: string;
   /** Actions performed during the beat. */
   do?: Action[];
+  /**
+   * Perform the actions but drop this segment's footage at assembly. For a
+   * wait the audience should not sit through — a model thinking for two
+   * minutes — so the demo jumps to the result instead. Must be silent.
+   */
+  cut?: boolean;
 }
 
 /**
@@ -159,6 +179,12 @@ export interface Storyboard {
   /** Hide framework dev overlays in the recording. On by default. */
   hideDevOverlay?: boolean;
   /**
+   * The translucent label in the bottom-right corner (`lib/watermark.ts`).
+   * Omitted or `true` uses the install's default; a string replaces its text;
+   * `false` turns it off — for a demo that is meant to leave the building.
+   */
+  watermark?: boolean | string;
+  /**
    * Statements run by `--reset` to return the demo data to its pre-walk state.
    * Parameterized, same rules as a Check.
    */
@@ -208,6 +234,13 @@ export async function loadStoryboard(path: string): Promise<Storyboard> {
   if (!Array.isArray(sb.takes) || sb.takes.length === 0) {
     bad("takes", "at least one take is required");
   }
+  if (
+    sb.watermark !== undefined &&
+    typeof sb.watermark !== "boolean" &&
+    typeof sb.watermark !== "string"
+  ) {
+    bad("watermark", "true, false, or the label's text");
+  }
 
   const ids = new Set<string>();
   sb.takes.forEach((take, ti) => {
@@ -238,6 +271,14 @@ export async function loadStoryboard(path: string): Promise<Storyboard> {
       }
       ids.add(seg.id);
       if (typeof seg.say !== "string") bad(at, "say must be a string");
+      if (seg.cut !== undefined && typeof seg.cut !== "boolean") {
+        bad(at, "cut must be a boolean");
+      }
+      // Narration over footage that is about to be dropped would be dropped
+      // with it, or land on the next segment's screen.
+      if (seg.cut === true && seg.say.trim() !== "") {
+        bad(at, 'a cut segment must be silent (say: "")');
+      }
       for (const [ai, action] of (seg.do ?? []).entries()) {
         const verbs = Object.keys(action).filter((k) => VERBS.includes(k));
         if (verbs.length !== 1) {
@@ -249,7 +290,11 @@ export async function loadStoryboard(path: string): Promise<Storyboard> {
         }
         // `scroll` without `by` used to validate, record, and scroll nothing —
         // a wasted take whose only symptom was a shot that did not move.
-        const args = action as { by?: unknown; ms?: unknown };
+        const args = action as {
+          by?: unknown;
+          ms?: unknown;
+          timeout?: unknown;
+        };
         if (verbs[0] === "scroll" && typeof args.by !== "number") {
           bad(
             `${at}.do[${ai}]`,
@@ -262,6 +307,35 @@ export async function loadStoryboard(path: string): Promise<Storyboard> {
           (typeof args.ms !== "number" || args.ms <= 0)
         ) {
           bad(`${at}.do[${ai}]`, "`ms` must be a positive number");
+        }
+        if (
+          args.timeout !== undefined &&
+          (verbs[0] !== "awaitText" ||
+            typeof args.timeout !== "number" ||
+            args.timeout <= 0)
+        ) {
+          bad(
+            `${at}.do[${ai}]`,
+            "`timeout` is a positive number of seconds, on `awaitText` only",
+          );
+        }
+        const meanwhile = (action as { meanwhile?: Partial<Meanwhile> })
+          .meanwhile;
+        if (
+          meanwhile !== undefined &&
+          (verbs[0] !== "awaitText" ||
+            typeof meanwhile !== "object" ||
+            typeof meanwhile.when !== "string" ||
+            meanwhile.when === "" ||
+            !Array.isArray(meanwhile.do) ||
+            meanwhile.do.length === 0 ||
+            meanwhile.do.some((a) => "awaitText" in a))
+        ) {
+          bad(
+            `${at}.do[${ai}]`,
+            "`meanwhile` is { when: target, do: [actions] }, on `awaitText` " +
+              "only, and its actions cannot themselves await",
+          );
         }
       }
     });

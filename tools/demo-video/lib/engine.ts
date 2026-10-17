@@ -59,8 +59,12 @@ export interface Engine {
   readonly name: EngineName;
   start(opts: EngineStartOptions): Promise<EngineStarted>;
   perform(action: Action, baseUrl: string): Promise<void>;
-  /** Stop recording, finalise the file, tear down. Returns the video path. */
-  stop(): Promise<{ videoPath: string }>;
+  /**
+   * Stop recording, finalise the file, tear down. Returns the video path, and
+   * `recStartMs` when the first frame's clock could only be measured after the
+   * fact — it then replaces the one `start` reported. See screen-capture.ts.
+   */
+  stop(): Promise<{ videoPath: string; recStartMs?: number }>;
   /** Best-effort teardown after a failure, so a partial video survives. Also
    *  the ordinary teardown of a dry run, which has no video to finalise. */
   abort(): Promise<{ videoPath?: string }>;

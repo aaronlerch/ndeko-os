@@ -14,8 +14,34 @@
  * database, nothing to publish to. What remains is the generic pipeline:
  * storyboards from the config dir, narration, a walk, an mp4.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { configFile } from "../../hooks/lib/paths";
 import type { DoctorCheck } from "./lib/doctor-check";
 import type { Product } from "./lib/product-types";
+
+/**
+ * This machine's watermark text, from the data tree's config.toml:
+ *
+ *   [demo_video]
+ *   watermark = "…"
+ *
+ * Read from there, never written here: the text names who the videos belong
+ * to, and this file is committed to a harness that carries no employer name.
+ * Absent or unreadable means no default watermark — the doctor says so.
+ */
+function dataTreeWatermark(): string | null {
+  try {
+    const path = configFile();
+    if (!existsSync(path)) return null;
+    const cfg = Bun.TOML.parse(readFileSync(path, "utf8")) as {
+      demo_video?: { watermark?: unknown };
+    };
+    const text = cfg.demo_video?.watermark;
+    return typeof text === "string" && text.trim() ? text.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 export const PRODUCT: Product = {
   // The same directory the repo install uses, deliberately: one voice config
@@ -57,5 +83,21 @@ export const PRODUCT: Product = {
 
   publishTarget: null,
 
-  extraChecks: async (): Promise<DoctorCheck[]> => [],
+  watermark: dataTreeWatermark(),
+
+  extraChecks: async (): Promise<DoctorCheck[]> => [
+    {
+      name: "watermark source",
+      async run() {
+        return dataTreeWatermark()
+          ? { ok: true, detail: `[demo_video] watermark in ${configFile()}` }
+          : {
+              ok: false,
+              warn: true,
+              detail: "no [demo_video] watermark in the data tree's config.toml",
+              fix: `add  [demo_video] watermark = "<text>"  to ${configFile()}`,
+            };
+      },
+    },
+  ],
 };

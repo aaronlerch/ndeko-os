@@ -58,8 +58,50 @@ segment actually began. ffmpeg lays each clip at its observed mark. Sync is
 arithmetic, so a slow route transition pushes the rest of the demo along with it
 instead of desyncing.
 
+The assembler works **per segment**: each segment's footage runs from its mark
+to the next, and the pieces are stitched back together. Three things follow:
+
+- **`"cut": true` drops a segment's footage.** Its actions still run, so it is
+  how a demo waits through something slow by nature (a model's two-minute turn,
+  a render) without the audience sitting through it. A cut segment must be
+  silent. Pair it with `awaitText`'s `timeout` (seconds, default 30).
+- **`awaitText`'s `meanwhile` drives a model that may stop to ask.**
+  `{ "when": <target>, "do": [actions] }` runs `do` each time `when` shows up
+  while the wait is still unmet, so a cut can answer however many questions a
+  live model asks on the way to the awaited result. On claude.ai, wait on the
+  `Claude finished the response` status and answer by typing into the
+  composer: chip labels, question shapes and tool summaries all change between
+  runs, and a blanket "go with your recommendation" must still forbid anything
+  outbound, like emailing a client.
+- **Narration can be written after the take.** For a demo whose screens are
+  unpredictable (a live model run), record first, look at the frames, rewrite
+  the `say` lines to match what the tape shows, then `--renarrate`. A clip that
+  grew past its footage gets the segment's last frame held for as long as it
+  needs, and the run reports each hold, instead of the clip playing over the
+  next segment.
+
 Clips are cached by a hash of their text and voice, so editing one line of
 narration regenerates one clip, not all of them.
+
+## Watermark
+
+Every video carries a translucent label in its bottom-right corner — the text
+`product.ts` supplies as `watermark` — so a demo that travels further than
+intended still says what it is. **On by default** wherever `product.ts` names
+one, because the failure it guards against is a forgotten flag.
+
+- `--no-watermark` turns it off for one render; `"watermark": false` in a
+  storyboard turns it off for that demo — the right place for one meant to be
+  shared outside.
+- `--watermark "<text>"` or `"watermark": "<text>"` replaces the text.
+- Precedence: flag, then storyboard, then `product.ts`.
+- Composited at assembly, so `--assemble-only` toggles it without a new take.
+  The manifest records which text a render carried; `demo-video doctor` shows
+  the default.
+
+The label is a transparent PNG rendered by the pipeline's own headless Chromium
+and laid on with ffmpeg's `overlay`, not `drawtext` — that filter exists only in
+ffmpeg builds linked against freetype, which the Homebrew build is not.
 
 ## Authoring a storyboard
 
@@ -94,7 +136,9 @@ narration regenerates one clip, not all of them.
 ```
 
 **Actions:** `goto` `click` `hover` `type` `press` `scroll` `scrollTo`
-`awaitUrl` `awaitText` `wait`. Exactly one verb key per object.
+`awaitUrl` `awaitText` `wait`. Exactly one verb key per object. `awaitText`
+also takes `timeout` and `meanwhile`; a segment takes `"cut": true` (see
+[The pipeline](#the-pipeline)).
 
 **Targets** address elements with `kind=value`, chained with `>>` to scope:
 
@@ -261,7 +305,7 @@ lapsed.
 | Bot detection | a CDP fingerprint sites can see | none |
 | Runs headless | **yes** — record while you work | no; a real window must be open |
 | Platform | macOS, Linux | macOS only (ScreenCaptureKit) |
-| Permissions | none | Screen Recording, granted to interceptor-bridge |
+| Permissions | none | Screen Recording — for interceptor-bridge, or, with no bridge, for the terminal running the take |
 
 **Use `playwright` unless you specifically need the real profile.** It is
 headless, portable, and its strict mode names exactly what an ambiguous target
@@ -271,6 +315,26 @@ A strict-CSP site blocks the interceptor resolver in both worlds. The take can
 opt in with `"allowCspStrip": true` — a real trade, since for the length of the
 take a site you are signed into runs without its own XSS defenses, which is why
 it lives in the storyboard rather than a CLI flag.
+
+### Without a bridge: ffmpeg screen capture
+
+A browser-only Interceptor install has no `capture record`. The engine then
+records the **screen** with ffmpeg and crops to the page area
+(`lib/screen-capture.ts`). It needs Screen Recording only for the terminal
+running the take — no bridge build, no separate grant.
+
+The trade is that a screen recording sees everything on the screen:
+
+- **The browser window must stay frontmost and uncovered** for the whole take.
+  The engine maximises the demo window and activates the browser with
+  `open -a`; anything that lands on top of it afterwards (a notification
+  banner, a permission dialog) is on the tape. Look at frames before trusting a
+  take.
+- **Nothing on this path uses AppleScript.** Asking an app for its window
+  bounds over Apple Events raises an Automation consent dialog that sits in
+  the middle of the screen until a human answers it — on the tape.
+- The tab strip and toolbar are cropped out, so other tabs' titles never reach
+  the recording.
 
 ## Prerequisites
 
@@ -328,4 +392,6 @@ Each of these cost a take or an afternoon.
 | `lib/cursor.ts` | The injected pointer and click ripple |
 | `lib/preflight.ts` | Tooling, stack reachability, data assertions, reset |
 | `lib/record.ts` | The storyboard interpreter |
-| `lib/assemble.ts` | The ffmpeg mux |
+| `lib/assemble.ts` | The ffmpeg mux: per-segment pieces, cuts, holds |
+| `lib/watermark.ts` | The corner label: resolution, PNG render |
+| `lib/screen-capture.ts` | ffmpeg screen capture for a bridgeless interceptor take |

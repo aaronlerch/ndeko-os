@@ -212,11 +212,35 @@ export class Cursor {
     // below the fold cut to a new view with no scroll in the storyboard at all.
     await scrollIntoView(target, { onlyIfNeeded: true });
     await target.waitFor({ state: "visible" });
+    const to = await this.centerOf(target);
+    await this.glideTo(to.x, to.y);
+    await this.settleOn(target);
+  }
+
+  private async centerOf(target: Locator): Promise<{ x: number; y: number }> {
     const box = await target.boundingBox();
     if (!box) {
       throw new Error("target is visible but has no bounding box");
     }
-    await this.glideTo(box.x + box.width / 2, box.y + box.height / 2);
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  /**
+   * The pointer is over where the target WAS. A page that is still filling
+   * in — an AI-written section arriving over its skeleton, a grid growing a
+   * row — moves everything below it, and a glide (up to 1.4s) or the hover
+   * pause (260ms) is plenty of time for that. Re-read the box and glide the
+   * difference, a few times if the page keeps moving, so what gets pressed is
+   * the target and not the spot it used to occupy. 2026-09-15: a Yes radio
+   * was missed by 47px, twice, when the section's observation landed during
+   * the hover pause and pushed the card down three lines.
+   */
+  private async settleOn(target: Locator): Promise<void> {
+    for (let i = 0; i < 3; i++) {
+      const now = await this.centerOf(target);
+      if (Math.hypot(now.x - this.pos.x, now.y - this.pos.y) < 2) return;
+      await this.glideTo(now.x, now.y);
+    }
   }
 
   /** Move onto a target and pause, without clicking. */
@@ -228,6 +252,9 @@ export class Cursor {
   /** Move onto a target, pause on hover, then click it for real. */
   async click(target: Locator, hoverMs = 260): Promise<void> {
     await this.hover(target, hoverMs);
+    // The pause is the window the page most often moves in; check once more
+    // with the pointer about to press.
+    await this.settleOn(target);
     await this.page.mouse.down();
     await sleep(80);
     await this.page.mouse.up();

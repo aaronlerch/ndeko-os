@@ -12,6 +12,13 @@
  *   bun run demo:record <name> --dry-run
  *   bun run demo:record <name> --out /tmp/demos
  *   bun run demo:record <name> --engine interceptor
+ *   bun run demo:record <name> --no-watermark
+ *   bun run demo:record <name> --watermark "Draft · do not share"
+ *
+ * Every video carries the install's watermark (`product.ts`) in its
+ * bottom-right corner unless the storyboard says `"watermark": false` or the
+ * run passes `--no-watermark`. It is applied at assembly, so changing it needs
+ * only `--assemble-only`, never a new take.
  *
  * `--dry-run` walks every action against the live app with no narration, no
  * tape and no holds — about a minute for a three-minute demo — and stops on
@@ -66,6 +73,11 @@ import {
 } from "./lib/storyboard";
 import { type Timing, renderNarration } from "./lib/tts";
 import { describe, resolveVoice } from "./lib/voice";
+import {
+  probeHeight,
+  renderWatermark,
+  resolveWatermark,
+} from "./lib/watermark";
 import { PRODUCT } from "./product";
 
 const HERE = import.meta.dir;
@@ -142,7 +154,7 @@ if (
 const target = process.argv[2];
 if (!target || target.startsWith("--")) {
   die(
-    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--dry-run] [--renarrate] [--narrate-only] [--out dir] [--engine playwright|interceptor]`,
+    `usage: ${PRODUCT.cmd.record} <storyboard> [--voice n] [--take n] [--reset] [--dry-run] [--renarrate] [--narrate-only] [--out dir] [--engine playwright|interceptor] [--no-watermark | --watermark text]`,
   );
 }
 
@@ -279,8 +291,12 @@ if (has("dry-run")) {
       console.log("  every segment's actions finish inside its narration");
     }
   }
+  // `--reset` ALONE only resets and stops (see the reset block above), so the
+  // printed command must pair it with a take — otherwise the hint copied
+  // verbatim records nothing and exits 0 (2026-09-24).
+  const recordFlags = has("reset") ? " --reset --take 1" : "";
   console.log(
-    `\n✓ dry run clean — every target resolved.\n  record it:  ${PRODUCT.cmd.record} ${sb.name}${has("reset") ? " --reset" : ""}\n`,
+    `\n✓ dry run clean — every target resolved.\n  record it:  ${PRODUCT.cmd.record} ${sb.name}${recordFlags}\n`,
   );
   process.exit(0);
 }
@@ -452,50 +468,52 @@ for (const [i] of sb.takes.entries()) {
   recordings.push(JSON.parse(await readFile(marksPath(i), "utf8")));
 }
 
-// ── does the new narration still fit the recorded footage? ──────────────────
+// ── narration that outgrew its footage ───────────────────────────────────────
 //
-// Only meaningful for a re-dub. On a normal run the walk READ these durations
-// and held each screen at least that long, so they fit by construction. On a
-// `--renarrate` the video is fixed and the audio has just changed underneath
-// it — and `assemble` places each clip at its recorded mark with `adelay`
-// without ever looking at the clip's length, so a clip that grew simply plays
-// over the next segment's visuals, or past the end of the video, with nothing
-// said about it. This is the one way a glossary fix can quietly damage a demo.
-if (has("renarrate")) {
-  const seconds = new Map(timings.map((t) => [t.id, t.seconds]));
-  const overflows: string[] = [];
-  for (const [ti, take] of recordings.entries()) {
-    for (const [mi, mark] of take.marks.entries()) {
-      const clip = seconds.get(mark.id);
-      if (clip === undefined || clip === 0) continue;
-      // The screen is held until the next mark, or to the end of the walk.
-      const next = take.marks[mi + 1];
-      const window = (next ? next.t : take.total) - mark.t;
-      if (clip > window + 0.05) {
-        overflows.push(
-          `    take ${ti + 1}  ${mark.id}  clip ${clip.toFixed(1)}s > ${window.toFixed(1)}s of footage  (over by ${(clip - window).toFixed(1)}s)`,
-        );
-      }
-    }
-  }
-  if (overflows.length > 0) {
-    console.log(
-      `\n  ! ${overflows.length} clip(s) no longer fit the recording:
-${overflows.join("\n")}
-    The mp4 will still assemble, and the narration will run over the
-    next segment's visuals. Re-record to fix it properly:
-      ${PRODUCT.cmd.record} ${sb.name}`,
-    );
-  } else {
-    console.log("\n  every re-narrated clip still fits its recorded footage");
-  }
-}
+// Only possible on a re-dub: on a normal run the walk READ these durations and
+// held each screen at least that long. On `--renarrate` the video is fixed and
+// the audio has changed underneath it, so `assemble` holds a segment's last
+// frame for as long as its new clip needs rather than letting the clip run over
+// the next segment's visuals. That is the intended workflow for a demo whose
+// footage is unpredictable — record first, then write the narration to what the
+// tape actually shows — and the run reports every hold it added.
 
 console.log("\nassemble");
 const output = join(outDir, `${sb.name}.mp4`);
-const result = await assemble(recordings, timings, output).catch((e: Error) =>
-  die(e.message),
-);
+
+const watermarkText = resolveWatermark({
+  off: has("no-watermark"),
+  flag: flag("watermark"),
+  storyboard: sb.watermark,
+  product: PRODUCT.watermark,
+});
+let watermarkPng: string | undefined;
+if (watermarkText) {
+  const firstTake = recordings[0]?.videoPath;
+  if (!firstTake) die("no recorded take to size the watermark against");
+  watermarkPng = await renderWatermark(
+    watermarkText,
+    await probeHeight(firstTake),
+    outDir,
+  ).catch((e: Error) => die(`watermark: ${e.message}`));
+  console.log(`  watermark  "${watermarkText}"  (off: --no-watermark)`);
+} else {
+  console.log("  watermark  none");
+}
+const result = await assemble(recordings, timings, output, {
+  cut: new Set(
+    allSegments(sb)
+      .filter((s) => s.cut)
+      .map((s) => s.id),
+  ),
+  pad: sb.pad ?? DEFAULTS.pad,
+  watermark: watermarkPng,
+}).catch((e: Error) => die(e.message));
+for (const f of result.frozen) {
+  console.log(
+    `  held ${f.id}'s last frame ${f.seconds.toFixed(1)}s so its narration fits`,
+  );
+}
 
 await writeFile(
   join(outDir, "manifest.json"),
@@ -519,6 +537,7 @@ await writeFile(
         segments: r.marks.length,
       })),
       output: rel(output),
+      watermark: watermarkText,
       duration: result.duration,
       clipsPlaced: result.clipsPlaced,
     },

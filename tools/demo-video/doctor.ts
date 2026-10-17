@@ -106,6 +106,19 @@ const GENERIC: DoctorCheck[] = [
       };
     },
   },
+  {
+    name: "watermark",
+    async run(): Promise<CheckResult> {
+      // Informational either way: an install with no owner to name has no
+      // watermark by design, and every render prints which one it used.
+      return {
+        ok: true,
+        detail: PRODUCT.watermark
+          ? `"${PRODUCT.watermark}" on every video unless turned off`
+          : "none by default (--watermark <text> adds one)",
+      };
+    },
+  },
 ];
 
 const results: Array<{ name: string; result: CheckResult }> = [];

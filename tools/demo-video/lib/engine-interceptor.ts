@@ -51,6 +51,11 @@ import {
   glideScript,
   scrollScript,
 } from "./engine-interceptor-page";
+import {
+  type ScreenCapture,
+  bridgeCanCapture,
+  startScreenCapture,
+} from "./screen-capture";
 import type { Action } from "./storyboard";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -201,6 +206,8 @@ export class InterceptorEngine implements Engine {
   private viewport = { width: 1440, height: 900 };
   private tabId: number | undefined;
   private pointer = { x: 80, y: 80 };
+  /** Set when recording through the ffmpeg fallback instead of the bridge. */
+  private screen: ScreenCapture | null = null;
 
   async start(opts: EngineStartOptions): Promise<EngineStarted> {
     if (process.platform !== "darwin") {
@@ -254,6 +261,8 @@ export class InterceptorEngine implements Engine {
 
     await this.inject();
 
+    if (!bridgeCanCapture()) return this.startScreen(opts);
+
     // WHICH window. Chrome commonly has several, and the bridge otherwise picks
     // the largest one for the app — which recorded a perfectly good video of an
     // unrelated pull request while the walk drove Linear in a different window.
@@ -301,6 +310,67 @@ export class InterceptorEngine implements Engine {
           ? ` (frame zero after ${started.startLatencyMs}ms)`
           : ""
       }`,
+    };
+  }
+
+  /**
+   * Record through ffmpeg screen capture, cropped to the page, because this
+   * install has no bridge to record the window with. See screen-capture.ts for
+   * the trade — chiefly that the window must stay frontmost and unobstructed.
+   *
+   * No AppleScript anywhere on this path, deliberately: asking an app for its
+   * window bounds over Apple Events raises an Automation consent dialog, and
+   * that dialog sits in the middle of the screen — on the tape — until a human
+   * answers it. Geometry comes from the page itself instead.
+   */
+  private async startScreen(opts: EngineStartOptions): Promise<EngineStarted> {
+    const browserApp = await this.resolveBrowserApp();
+    const tabs = (await run(["tabs"])).data as
+      | { id?: number; windowId?: number }[]
+      | null;
+    const windowId = tabs?.find((t) => t.id === this.tabId)?.windowId;
+    if (windowId !== undefined) {
+      await must(["window", "focus", String(windowId)], "focus the window");
+      await run(["window", "resize", String(windowId), "--state", "maximized"]);
+    }
+    // Bring the browser app in front of whatever launched the run. `open -a`
+    // activates without Apple Events, so it needs no Automation grant.
+    Bun.spawnSync(["open", "-a", browserApp]);
+    await sleep(1200);
+
+    const geo = JSON.parse(
+      await evalRaw(
+        "JSON.stringify({ sx: screenX, sy: screenY, ow: outerWidth, oh: outerHeight, iw: innerWidth, ih: innerHeight, dpr: devicePixelRatio })",
+        "measure the page area",
+      ),
+    ) as {
+      sx: number;
+      sy: number;
+      ow: number;
+      oh: number;
+      iw: number;
+      ih: number;
+      dpr: number;
+    };
+    // The page sits at the bottom of the window, below the tab strip and the
+    // toolbar — which carry every other tab's title and are never recorded.
+    const crop = {
+      x: (geo.sx + (geo.ow - geo.iw) / 2) * geo.dpr,
+      y: (geo.sy + geo.oh - geo.ih) * geo.dpr,
+      width: geo.iw * geo.dpr,
+      height: geo.ih * geo.dpr,
+    };
+    this.videoPath = join(opts.videoDir, "screen.mp4");
+    await Bun.$`mkdir -p ${opts.videoDir}`.quiet();
+    this.screen = await startScreenCapture({
+      out: this.videoPath,
+      crop,
+      outWidth: Math.max(opts.viewport.width, 1920),
+    });
+    this.recording = true;
+    return {
+      recStartMs: this.screen.spawnedMs,
+      describe: `${browserApp} page area ${geo.iw}×${geo.ih}pt via ffmpeg screen capture (no bridge) — keep the window frontmost`,
     };
   }
 
@@ -561,10 +631,20 @@ export class InterceptorEngine implements Engine {
       await this.glide(await this.hit(action.type));
       const ref = await this.refForHit();
       await must(["click", ref, ...scope()], `focus ${action.type}`);
-      await must(
-        ["type", ref, action.text, ...scope()],
-        `type into ${action.type}`,
-      );
+      // `type` inserts its whole string at once, which on tape reads as a
+      // paste. So: the first chunk clears the field, the rest append, a couple
+      // of characters at a time. Each call is a process spawn, which is most
+      // of the cadence; `delay` adds to it. Inserting through the editor's
+      // own input path also keeps rich editors (ProseMirror) reacting the way
+      // they do to a person — claude.ai's slash menu opens mid-word.
+      const chunks = action.text.match(/[\s\S]{1,2}/g) ?? [""];
+      for (const [i, chunk] of chunks.entries()) {
+        await must(
+          ["type", ref, chunk, ...(i > 0 ? ["--append"] : []), ...scope()],
+          `type into ${action.type}`,
+        );
+        if (action.delay) await sleep(action.delay);
+      }
       return;
     }
     if ("press" in action) {
@@ -607,8 +687,37 @@ export class InterceptorEngine implements Engine {
       }
     }
     if ("awaitText" in action) {
-      await this.awaitHit(action.awaitText);
-      return;
+      const timeoutMs = (action.timeout ?? 30) * 1000;
+      if (!action.meanwhile) {
+        await this.awaitHit(action.awaitText, timeoutMs);
+        return;
+      }
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        try {
+          await this.hit(action.awaitText);
+          return;
+        } catch (e) {
+          if (Date.now() > deadline) {
+            throw new Error(
+              `timed out after ${timeoutMs}ms — ${(e as Error).message}`,
+            );
+          }
+        }
+        let present = false;
+        try {
+          await this.hit(action.meanwhile.when);
+          present = true;
+        } catch {}
+        if (present) {
+          for (const step of action.meanwhile.do) {
+            await this.perform(step, baseUrl);
+          }
+          await sleep(1500);
+        } else {
+          await sleep(500);
+        }
+      }
     }
     if ("wait" in action) {
       await sleep(action.wait * 1000);
@@ -617,8 +726,16 @@ export class InterceptorEngine implements Engine {
     throw new Error(`unhandled action: ${JSON.stringify(action)}`);
   }
 
-  async stop(): Promise<{ videoPath: string }> {
+  async stop(): Promise<{ videoPath: string; recStartMs?: number }> {
     if (!this.videoPath) throw new Error("engine not started");
+    if (this.screen) {
+      const { path, firstFrameMs } = await this.screen.stop();
+      this.screen = null;
+      this.recording = false;
+      await run(["tab", "close", ...scope()]);
+      activeTab = undefined;
+      return { videoPath: path, recStartMs: firstFrameMs };
+    }
     const result = (await must(
       ["macos", "capture", "record", "stop"],
       "stop recording",
@@ -643,7 +760,11 @@ export class InterceptorEngine implements Engine {
   }
 
   async abort(): Promise<{ videoPath?: string }> {
-    if (this.recording) {
+    if (this.screen) {
+      await this.screen.abort();
+      this.screen = null;
+      this.recording = false;
+    } else if (this.recording) {
       await run(["macos", "capture", "record", "stop"]);
       this.recording = false;
     }

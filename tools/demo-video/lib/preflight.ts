@@ -10,6 +10,7 @@
 import { Client } from "pg";
 import { PRODUCT } from "../product";
 import { installHint } from "./install-hint";
+import { bridgeCanCapture, screenDevice } from "./screen-capture";
 import type { Check, Storyboard } from "./storyboard";
 
 export interface ToolingReport {
@@ -126,29 +127,24 @@ export async function checkInterceptor(): Promise<void> {
     );
   }
 
-  // `capture record status` is the verb this engine depends on. An older
-  // bridge answers "not available"/"notImplemented" rather than a state
-  // object, and the difference decides whether the fix is a rebuild.
-  const probe = Bun.spawnSync([
-    "interceptor",
-    "macos",
-    "capture",
-    "record",
-    "status",
-    "--json",
-  ]);
-  const out = probe.stdout.toString() + probe.stderr.toString();
-  if (
-    probe.exitCode !== 0 ||
-    /not available|notImplemented|unknown/i.test(out)
-  ) {
+  // `capture record` is how this engine prefers to record — one window,
+  // through the bridge. Without it (a browser-only install, or a bridge that
+  // predates the verb) the engine falls back to ffmpeg screen capture, which
+  // needs only a screen ffmpeg can see.
+  if (bridgeCanCapture()) return;
+  if (screenDevice() === null) {
     throw new Error(
-      `this interceptor-bridge has no \`capture record\` verb.
-  Rebuild it from the Interceptor checkout:  ./scripts/build-bridge.sh
-  then restart it:  open -gj dist/interceptor-bridge.app
-  ${out.trim().slice(0, 200)}`,
+      `the interceptor engine has nothing to record with.
+  Either install interceptor-bridge with \`capture record\`
+  (from the Interceptor checkout: ./scripts/build-bridge.sh, then
+  open -gj dist/interceptor-bridge.app), or give the terminal running this
+  Screen Recording so ffmpeg can capture the screen.`,
     );
   }
+  console.log(
+    `  capture  no interceptor-bridge — recording the screen with ffmpeg.
+           Keep the browser window frontmost and uncovered for the take.`,
+  );
 }
 
 /**

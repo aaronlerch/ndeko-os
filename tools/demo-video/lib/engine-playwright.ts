@@ -173,10 +173,32 @@ async function perform(
     return;
   }
   if ("awaitText" in action) {
-    await resolve(page, action.awaitText).waitFor({
-      state: "visible",
-      timeout: 30_000,
-    });
+    const timeout = (action.timeout ?? 30) * 1000;
+    if (!action.meanwhile) {
+      await resolve(page, action.awaitText).waitFor({
+        state: "visible",
+        timeout,
+      });
+      return;
+    }
+    const deadline = Date.now() + timeout;
+    const target = resolve(page, action.awaitText);
+    const aside = resolve(page, action.meanwhile.when);
+    while (!(await target.isVisible())) {
+      if (Date.now() > deadline) {
+        throw new Error(
+          `timed out after ${timeout}ms waiting for ${action.awaitText}`,
+        );
+      }
+      if (await aside.isVisible()) {
+        for (const step of action.meanwhile.do) {
+          await perform(page, cursor, step, baseUrl);
+        }
+        await page.waitForTimeout(1500);
+      } else {
+        await page.waitForTimeout(500);
+      }
+    }
     return;
   }
   if ("wait" in action) {

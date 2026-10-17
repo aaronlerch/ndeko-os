@@ -79,6 +79,17 @@ export interface Product {
    */
   publishTarget: { rootFolderId: string; sharedDriveId: string } | null;
 
+  /**
+   * The label every video from this install carries in its bottom-right
+   * corner unless a storyboard or `--no-watermark` turns it off
+   * (`lib/watermark.ts`). `null` for none.
+   *
+   * Here rather than in the generic pipeline because the text is a fact about
+   * who the videos belong to — and an install that must carry no employer
+   * name reads it from somewhere outside its own tree.
+   */
+  watermark: string | null;
+
   /** Doctor probes that only make sense for this product. */
   extraChecks: () => Promise<DoctorCheck[]>;
 }

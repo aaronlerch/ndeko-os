@@ -101,6 +101,9 @@ interface WalkOptions {
 
 interface WalkResult {
   head: number;
+  /** The first-frame clock `head` was computed from, so a later correction
+   *  from the engine can be applied as a delta. */
+  recStartMs: number;
   total: number;
   marks: Mark[];
   segments: SegmentTiming[];
@@ -170,7 +173,9 @@ async function walk(opts: WalkOptions): Promise<WalkResult> {
       const actionSeconds = (Date.now() - started) / 1000;
       segments.push({ id: segment.id, actionSeconds });
 
-      if (dry) continue;
+      // A cut segment's footage is dropped at assembly, so holding it would
+      // only lengthen the take.
+      if (dry || segment.cut) continue;
       const hold = (seconds.get(segment.id) ?? 3) + pad;
       const remaining = hold * 1000 - (Date.now() - started);
       if (remaining > 0) await sleep(remaining);
@@ -197,7 +202,13 @@ async function walk(opts: WalkOptions): Promise<WalkResult> {
     throw new Error(`${where}\n  ${(e as Error).message}${shot}${tape}`);
   }
 
-  return { head, total: (Date.now() - t0) / 1000, marks, segments };
+  return {
+    head,
+    recStartMs,
+    total: (Date.now() - t0) / 1000,
+    marks,
+    segments,
+  };
 }
 
 export async function recordTake(
@@ -215,7 +226,7 @@ export async function recordTake(
   const engine = makeEngine(
     engineName ?? take.engine ?? sb.engine ?? DEFAULTS.engine,
   );
-  const { head, total, marks } = await walk({
+  const walked = await walk({
     sb,
     take,
     engine,
@@ -223,7 +234,15 @@ export async function recordTake(
     storageState,
     timings,
   });
-  const { videoPath } = await engine.stop();
+  const { total, marks } = walked;
+  const stopped = await engine.stop();
+  const { videoPath } = stopped;
+  // An engine that could only measure its first frame after stopping hands
+  // back the real clock; the head moves by the difference.
+  const head =
+    stopped.recStartMs === undefined
+      ? walked.head
+      : walked.head + (walked.recStartMs - stopped.recStartMs) / 1000;
 
   return {
     profile: take.profile,

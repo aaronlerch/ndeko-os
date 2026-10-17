@@ -122,6 +122,13 @@ When `$ARGUMENTS` is `install`, or the person says nothing is set up:
   extracted frames** — not by the pipeline exiting zero.
 - Every claim the narration makes covered by a `preflight` check, so the same
   demo cannot be re-recorded against stale data.
+- The corner watermark, which every render carries by default. Its text lives
+  in the data tree's `config.toml` under `[demo_video] watermark` — never in
+  this repo, because it names who the videos belong to. **Turning it off is
+  Aaron's call, never a default I pick**: only on an explicit ask, via
+  `--no-watermark` for one render or `"watermark": false` in a storyboard meant
+  to be shared outside. Say in the report whether the video carries it, and if
+  `demo-video doctor` warns that the data tree has none, say that too.
 
 ## When a word is pronounced wrong
 
