@@ -16,7 +16,7 @@ This workflow handles any input, extracted directly:
 
 | Input Type | Detection | Extraction Method |
 |------------|-----------|-------------------|
-| YouTube URL | `youtube.com`, `youtu.be` | `yt-dlp` transcript (see the Research skill) |
+| YouTube URL | `youtube.com`, `youtu.be` | `yt-dlp --skip-download --write-auto-subs` transcript |
 | Article URL | HTTP(S) URL | WebFetch; Interceptor if the page is blocked or authenticated |
 | Blog file | `.md` file path | Direct read → markdown content |
 | PDF file | `.pdf` file path | Read the file directly — it handles PDFs |

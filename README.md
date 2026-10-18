@@ -204,10 +204,10 @@ Roughly grouped:
 - **Thinking** — `FirstPrinciples`, `SystemsThinking`, `RootCauseAnalysis`, `Science`, `RedTeam`, `IterativeDepth`
 - **Communication** — `WaitWhat` (re-pitches a message that did not land), `Debrief` (the full account of a finished build, as a review page)
 - **Verification & safety** — `Interceptor` (real-Chrome browser automation; mandatory for any visual claim), `VetRepo`, `Infrastructure`
-- **Integrations** — `GoogleWorkspace`, `McpShim`, `Research`
+- **Integrations** — `GoogleWorkspace`, `McpShim`
 - **Authoring** — `Writing` — drafts in a measured voice, per channel, with a deterministic `VoiceCheck`. The method ships here; every measurement loads from the data tree.
-- **Media** — `Say`, `Speak`, `VoiceClone`, `ChatterboxTTS`, `AudioEditor`, `Remotion`, `DemoVideo` (narrated demo videos recorded by driving a real browser)
-- **Meta** — `BitterPillEngineering` (audits instruction sets for over-prompting), `NdekoInstall` (interviews a new user and writes their data tree), `ApertureOscillation`, `PrivateInvestigator`
+- **Media** — `Say`, `Speak`, `VoiceClone`, `ChatterboxTTS`, `Remotion`, `DemoVideo` (narrated demo videos recorded by driving a real browser)
+- **Meta** — `BitterPillEngineering` (audits instruction sets for over-prompting), `NdekoInstall` (interviews a new user and writes their data tree), `ApertureOscillation`
 
 Skills reference their own files through `${NDEKO_DIR}`, which `settings.json` sets to `$HOME/.claude`.
 
