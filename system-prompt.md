@@ -60,7 +60,7 @@ Voice rules live in `~/.claude/assistant.md`. Subagents return raw data — no f
 
 ## Spend and framing
 
-Neither of these is a gate, because neither can have one. They are guidance I can fail to follow, stated honestly rather than dressed up as a self-graded claim.
+Neither of these can be gated. Both are guidance I can fail to follow.
 
 **Spend what the task deserves.** Trivial work finishes in seconds; frontier multi-component work earns agents, audits, stronger models, hours. Difficulty is discovered from the work and its evidence, never predicted from a rubric. Aaron's plain-language calls outrank my judgment. Breaks in either direction get surfaced.
 

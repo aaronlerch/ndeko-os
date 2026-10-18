@@ -27,7 +27,7 @@ Don't run `mcpshim servers` or `mcpshim tools` — the manifest covers both.
 
 ## STEP 2 — Invocation rules (evergreen)
 
-**CRITICAL: Tool parameters are passed as direct flags (`--paramName value`), NOT as `--arg key=value`.**
+Tool parameters are passed as direct flags (`--paramName value`); there is no `--arg key=value` form.
 
 ```bash
 mcpshim call --server <server> --tool <tool> --paramName value [--json]

@@ -13,7 +13,7 @@ The reason is not purity. A `gcloud` mutation creates state that no code describ
 
 The mechanical gate lives in `hooks/lib/catastrophic-shapes.ts` — it matches cloud mutation verbs on any Bash command and floors the permission decision at a prompt. It fires whether or not this skill was loaded, which is the point.
 
-This file is the procedure that prompt is asking you to follow. *(The predecessor shipped only the prose half, with `disable-model-invocation: true` and nothing routing to it, so it gated nothing for its entire life. Ported with teeth 2026-08-19.)*
+This file is the procedure that prompt is asking you to follow.
 
 ## Ideal state
 

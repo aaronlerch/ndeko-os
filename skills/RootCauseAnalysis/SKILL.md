@@ -142,11 +142,3 @@ User: "this flaky test only fails in CI, not locally"
 ---
 
 **Attribution:** Frameworks drawn from Sakichi Toyoda (5 Whys, Toyota Production System), Kaoru Ishikawa (*Guide to Quality Control*, 1968; Fishbone diagram), James Reason (*Human Error*, 1990; Swiss Cheese model), Dean Gano (*Apollo Root Cause Analysis*, 2008), Charles Kepner & Benjamin Tregoe (*The Rational Manager*, 1965), Google SRE book, Etsy blameless postmortem culture (John Allspaw).
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"RootCauseAnalysis","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```

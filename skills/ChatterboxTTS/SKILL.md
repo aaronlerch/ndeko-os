@@ -21,7 +21,7 @@ Parse `$ARGUMENTS` to extract:
 - **Profile name** — must exist in `${NDEKO_DATA_DIR}/voice-profiles/` (create with `/voice-clone`)
 - **Text** — inline string, or `@/path/to/text.txt` to load from a file
 - Optional `--out <path>` — defaults to `~/Downloads/chatterbox-<profile>-<YYYYmmdd-HHMMSS>.wav`
-- Optional `--device auto|cpu|mps|cuda` — defaults to `auto`, which resolves cuda → mps → cpu. On Apple Silicon `auto` picks **mps**, measured ~4x faster than CPU on turbo (2026-08-31). An older note here claimed MPS was broken by tensor-allocation bugs; that is no longer true and `--device cpu` is only needed to reproduce a seed rendered on CPU.
+- Optional `--device auto|cpu|mps|cuda` — defaults to `auto`, which resolves cuda → mps → cpu. On Apple Silicon `auto` picks **mps**, measured ~4x faster than CPU on turbo (2026-08-31). `--device cpu` is only needed to reproduce a seed rendered on CPU.
 - Optional `--model turbo|standard|multilingual|nano` — defaults to `standard`. See the model table below. **Cue tags only work on `turbo` and `nano`.**
 - Optional `--mtl-version v2|v3` — multilingual weights, defaults to `v3`
 - Optional `--language <code>` — multilingual only, defaults to `en` (23 supported)

@@ -48,6 +48,3 @@ of everything else.
 Once fired, do not open by narrating that it fired, apologising, or diagnosing why the first
 attempt failed. Go straight to the re-pitch.
 
-*Model-invoked as of 2026-09-11, on a trial basis, so the natural phrasing works and not only
-`/WaitWhat`. If it over-fires, the dial-back is one line: add `disable-model-invocation: true`,
-and strip the description to its first sentence.*
