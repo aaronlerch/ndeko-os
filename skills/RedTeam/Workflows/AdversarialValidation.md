@@ -7,7 +7,6 @@
 Launch 2-3 specialized agents to produce competing solutions from different perspectives:
 
 ```
-<instructions>
 ADVERSARIAL VALIDATION - ROUND 1 (COMPETING PROPOSALS):
 
 You are [PERSONA]. Generate your best solution to this problem.
@@ -19,7 +18,6 @@ Your perspective emphasizes:
 
 Produce a complete solution that optimizes for YOUR priorities.
 Be specific and detailed - this will be compared against other proposals.
-</instructions>
 
 [Problem/Task description]
 ```
@@ -46,7 +44,6 @@ Be specific and detailed - this will be compared against other proposals.
 A critic agent reads ALL proposals and "brutally critiques" each:
 
 ```
-<instructions>
 ADVERSARIAL VALIDATION - ROUND 2 (BRUTAL CRITIQUE):
 
 You are the Harsh Critic. You have received [N] proposals for [problem].
@@ -70,7 +67,6 @@ For EACH proposal:
    - Why?
 
 Be harsh but fair. The goal is truth, not destruction.
-</instructions>
 
 [Proposals from Round 1]
 ```
@@ -80,7 +76,6 @@ Be harsh but fair. The goal is truth, not destruction.
 The original agents read the critique and collaborate on a final solution:
 
 ```
-<instructions>
 ADVERSARIAL VALIDATION - ROUND 3 (COLLABORATIVE SYNTHESIS):
 
 You are [PERSONA]. You've seen the Critic's brutal assessment.
@@ -93,7 +88,6 @@ Working with your fellow agents, produce a SINGLE UNIFIED solution that:
 
 This is not compromise - it's synthesis. The final output should be BETTER
 than any individual proposal, not just a blend.
-</instructions>
 
 [Original proposals + Critic's assessment]
 ```
@@ -105,7 +99,6 @@ than any individual proposal, not just a blend.
 For a single-prompt execution:
 
 ```
-<instructions>
 ADVERSARIAL VALIDATION - FULL PROTOCOL:
 
 ROUND 1 - COMPETING PROPOSALS:
@@ -135,7 +128,6 @@ OUTPUT:
 - Brief summary of the three proposals
 - Key critique points
 - Final synthesized recommendation with clear rationale
-</instructions>
 
 [Problem/Task to validate]
 ```
@@ -144,17 +136,17 @@ OUTPUT:
 
 ## Integration with Existing RedTeam
 
-**Relationship to 32-Agent Protocol:**
-- The 32-agent parallel analysis (ParallelAnalysis.md) is for DEPTH - attacking one argument from 32 perspectives
+**Relationship to Parallel Analysis:**
+- Parallel Analysis (ParallelAnalysis.md) is for DEPTH - attacking one argument from many independent lenses
 - Adversarial Validation is for SYNTHESIS - producing better output through competition and refinement
 
 **When to Use Which:**
-- **32-Agent Protocol:** "Red team this argument/idea" - stress-test existing content
+- **Parallel Analysis:** "Red team this argument/idea" - stress-test existing content
 - **Adversarial Validation:** "Help me design/decide/create X" - produce new content through adversarial refinement
 
 **Combining Both:**
 1. Use Adversarial Validation to produce initial solution
-2. Use 32-Agent Protocol to stress-test the synthesized result
+2. Use Parallel Analysis to stress-test the synthesized result
 3. Iterate if critical flaws found
 
 ---
@@ -227,4 +219,3 @@ Start with A's JWT approach (pragmatic), add B's short-lived tokens (15 min) and
 **Related Workflows:**
 - `ParallelAnalysis.md` - For stress-testing existing arguments
 
-**Last Updated:** 2025-11-27

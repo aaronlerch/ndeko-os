@@ -18,20 +18,16 @@ The most powerful critique is usually ONE core issue:
 
 - Steelman is strong enough that a proponent would say "yes, that's my argument"
 - Counter-argument defeats the steelman, not a weaker strawman
-- Multiple agents converged on same insights
+- Independent lenses converged on the same insights
 - Reader says "I hadn't thought of that"
 
-## The 32 Agent Types
+## Lens Families
 
-| Type | Count | Focus |
-|------|-------|-------|
-| **Engineers** | 8 | Technical and logical rigor |
-| **Architects** | 8 | Structural and systemic issues |
-| **Pentesters** | 8 | Adversarial thinking |
-| **Interns** | 8 | Fresh perspectives |
+| Family | Focus |
+|------|-------|
+| **Technical rigor** | Logic, evidence, edge cases, failure modes |
+| **Structural** | Systems, trade-offs, incentives, second-order effects |
+| **Adversarial** | How an opponent or a human routes around it |
+| **Fresh eyes** | Naive questions, analogies, the uncomfortable truth |
 
-Each agent type brings unique attack angles - see `Workflows/ParallelAnalysis.md` for full roster.
-
----
-
-**Last Updated:** 2025-12-20
+Pick the lenses the argument is exposed to — see the menu in `Workflows/ParallelAnalysis.md`.

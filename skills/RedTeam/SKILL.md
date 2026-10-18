@@ -1,53 +1,29 @@
 ---
 name: RedTeam
-description: "Military-grade adversarial analysis that deploys 32 parallel expert agents (engineers, architects, pentesters, interns) to stress-test ideas, strategies, and plans — not systems or infrastructure. Two workflows: ParallelAnalysis (5-phase: decompose into 24 atomic claims → 32-agent parallel attack → synthesis → steelman → counter-argument, each 8 points) and AdversarialValidation (competing proposals synthesized into best solution). Context files: Philosophy.md (core principles, success criteria, agent types), Integration.md (how to combine with FirstPrinciples and other skills; output format). Targets arguments, not network vulnerabilities. Findings ranked by severity; goal is to strengthen, not destroy — weaknesses delivered with remediation paths. Collaborates with FirstPrinciples (decompose assumptions before attacking). NOT FOR AI instruction set auditing (use BitterPillEngineering). NOT FOR network/system vulnerability testing (use a security assessment skill). USE WHEN red team, attack idea, counterarguments, critique, stress test, devil's advocate, find weaknesses, break this, poke holes, what could go wrong, strongest objection, adversarial validation, battle of bots."
+description: "Adversarial analysis that attacks an idea, strategy, or plan from many independent expert lenses in parallel (technical rigor, structural, adversarial, fresh eyes) — not systems or infrastructure. Two workflows: ParallelAnalysis (decompose into atomic claims → parallel lens attack → convergence → steelman → counter-argument) and AdversarialValidation (competing proposals synthesized into the best solution). Context files: Philosophy.md (core principles, success criteria), Integration.md (how to combine with FirstPrinciples, Forge and Science). Findings ranked by convergence and severity; goal is to strengthen, not destroy — weaknesses delivered with remediation paths. NOT FOR AI instruction set auditing (use BitterPillEngineering). NOT FOR network/system vulnerability testing (use a security assessment skill). USE WHEN red team, attack idea, counterarguments, critique, stress test, devil's advocate, find weaknesses, break this, poke holes, what could go wrong, strongest objection, adversarial validation, battle of bots."
 effort: high
 ---
 
 # RedTeam Skill
 
-Military-grade adversarial analysis using parallel agent deployment. Breaks arguments into atomic components, attacks from 32 expert perspectives (engineers, architects, pentesters, interns), synthesizes findings, and produces devastating counter-arguments with steelman representations.
-
+Adversarial analysis using parallel agents. Breaks an argument into atomic claims, attacks it from the independent lenses it is most exposed to, measures where the attacks converge, and delivers both the steelman and the strongest counter-argument.
 
 ## Workflow Routing
-
-Route to the appropriate workflow based on the request.
-
-**When executing a workflow, output this notification directly:**
-
-```
-Running the **WorkflowName** workflow in the **RedTeam** skill to ACTION...
-```
 
 | Trigger | Workflow |
 |---------|----------|
 | Red team analysis (stress-test existing content) | `Workflows/ParallelAnalysis.md` |
 | Adversarial validation (produce new content via competition) | `Workflows/AdversarialValidation.md` |
 
----
-
-## Quick Reference
-
 | Workflow | Purpose | Output |
 |----------|---------|--------|
-| **ParallelAnalysis** | Stress-test existing content | Steelman + Counter-argument (8-points each) |
+| **ParallelAnalysis** | Stress-test existing content | Steelman + counter-argument + ranked findings with remediations |
 | **AdversarialValidation** | Produce new content via competition | Synthesized solution from competing proposals |
-
-**The Five-Phase Protocol (ParallelAnalysis):**
-1. **Decomposition** - Break into 24 atomic claims
-2. **Parallel Analysis** - 32 agents examine strengths AND weaknesses
-3. **Synthesis** - Identify convergent insights
-4. **Steelman** - Strongest version of the argument
-5. **Counter-Argument** - Strongest rebuttal
-
----
 
 ## Context Files
 
-- `Philosophy.md` - Core philosophy, success criteria, agent types
-- `Integration.md` - Skill integration, FirstPrinciples usage, output format
-
----
+- `Philosophy.md` - Core philosophy and success criteria
+- `Integration.md` - Skill integration and FirstPrinciples usage
 
 ## Examples
 
@@ -55,7 +31,7 @@ Running the **WorkflowName** workflow in the **RedTeam** skill to ACTION...
 ```
 User: "red team this microservices migration plan"
 --> Workflows/ParallelAnalysis.md
---> Returns steelman + devastating counter-argument (8 points each)
+--> Returns steelman + counter-argument + the findings that converged
 ```
 
 **Devil's advocate on a business decision:**
@@ -72,12 +48,8 @@ User: "battle of bots - which approach is better for this feature?"
 --> Synthesizes best solution from competing ideas
 ```
 
----
-
-**Last Updated:** 2025-12-20
-
 ## Gotchas
 
-- **RedTeam is for attacking IDEAS, not systems.** This skill finds flaws in arguments, strategies, and plans — not network vulnerabilities.
-- **32 adversarial agents generate volume — not all findings are equal.** Rank by severity, discard noise.
+- **RedTeam is for attacking IDEAS, not systems.** It finds flaws in arguments, strategies, and plans — not network vulnerabilities.
+- **More attackers is not better attackers.** Distinct lenses catch failure modes; duplicates of one skeptic add volume and noise. Rank by convergence and severity, discard noise.
 - **The goal is to strengthen, not destroy.** Present weaknesses constructively with remediation paths.
