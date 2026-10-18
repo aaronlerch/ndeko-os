@@ -49,15 +49,22 @@ export interface HookInput extends BaseHookInput {
  */
 export async function readHookInput(): Promise<HookInput | null> {
   let raw: string;
+  // Cleared in `finally`: an armed timer keeps bun alive after stdin arrives, so
+  // any hook that returns instead of calling process.exit() waited the full
+  // timeout. Measured 2026-10-17: CatastrophicGuard took 2,031 ms per allowed
+  // Bash call against ~35 ms for its siblings.
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     raw = await Promise.race([
       new Response(Bun.stdin.stream()).text(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("stdin timeout")), STDIN_TIMEOUT_MS),
-      ),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("stdin timeout")), STDIN_TIMEOUT_MS);
+      }),
     ]);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 
   const parsed = parseHookStdin(raw);

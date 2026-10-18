@@ -23,13 +23,19 @@
  * `settings.json` → `permissions.deny`, where they are enforced by the harness
  * without depending on this hook running at all. Two layers, on purpose.
  *
- * FAIL-OPEN, STATED PLAINLY
+ * FAIL-OPEN ON PAYLOAD, FAIL-CLOSED ON PROCESS
  *
  * On unreadable stdin or a malformed payload this hook exits 0 and the command
  * proceeds. That is the same call `hook-io.ts` documents: a hook that takes
  * down the session over a harness-version problem is worse than one that skips
  * an invocation. The compensating control is that the deny list in
  * settings.json does not route through here.
+ *
+ * A process that never gets that far — bun missing or crashing, the file gone,
+ * the timeout reached — is different: settings.json sets `onFailure: "block"`
+ * on this hook, so those block the call (2026-10-17, Claude Code 2.1.295+). An
+ * uncaught throw inside main() still exits 0 via the catch below; that is the
+ * payload case above, not this one.
  *
  * It follows that this hook is a SECOND layer and never the only one. Anything
  * expressible as a prefix rule belongs in settings.json, not added here.

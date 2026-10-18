@@ -172,7 +172,8 @@
           {
             "type": "command",
             "command": "bun --env-file=/dev/null $HOME/.claude/hooks/PrivacyBoundary.hook.ts",
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           },
           {
             "type": "command",
@@ -186,7 +187,8 @@
           {
             "type": "command",
             "command": "bun --env-file=/dev/null $HOME/.claude/hooks/CatastrophicGuard.hook.ts",
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       },
@@ -196,7 +198,8 @@
           {
             "type": "command",
             "command": "bun --env-file=/dev/null $HOME/.claude/hooks/EnvFileGate.hook.ts",
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       },
