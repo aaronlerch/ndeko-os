@@ -1,6 +1,6 @@
 ---
 name: ApertureOscillation
-description: "3-pass scope oscillation that holds a question constant while shifting the scope envelope — narrow/tactical, wide/strategic, then synthesis — to surface design tensions invisible at any single zoom level. Requires two distinct inputs: the tactical target (what you're building) and strategic context (the larger system it serves). Pass 1 captures the component's own internal logic. Pass 2 reveals what the system needs it to be. Pass 3 finds where those views diverge — that delta is the output. Produces: design tensions, scope recommendations, and coherence assessments. Single workflow: Workflows/Oscillate.md. BPE-fragile — quarterly test recommended to verify smarter models don't naturally oscillate scope without prompting. Best integration point: Algorithm OBSERVE phase (before ISC) or THINK phase (before approach commitment). NOT a lens rotation (that's IterativeDepth) and NOT idea generation (that's BeCreative). NOT FOR deep incident causal chains (use RootCauseAnalysis) or assumption decomposition (use FirstPrinciples). USE WHEN aperture oscillation, oscillate scope, zoom in and out, tactical vs strategic, scope framing, design tension, architecture decision, feature fits system, system coherence check, local vs global design, build this inside that, wrong scope, design review, scope negotiation."
+description: "3-pass scope oscillation that holds a question constant while shifting the scope envelope — narrow/tactical, wide/strategic, then synthesis — to surface design tensions invisible at any single zoom level. Requires two distinct inputs: the tactical target (what you're building) and strategic context (the larger system it serves). Pass 1 captures the component's own internal logic. Pass 2 reveals what the system needs it to be. Pass 3 finds where those views diverge — that delta is the output. Produces: design tensions, scope recommendations, and coherence assessments. Single workflow: Workflows/Oscillate.md. BPE-fragile — quarterly test recommended to verify smarter models don't naturally oscillate scope without prompting. NOT a lens rotation (that's IterativeDepth) and NOT idea generation. NOT FOR deep incident causal chains (use RootCauseAnalysis) or assumption decomposition (use FirstPrinciples). USE WHEN aperture oscillation, oscillate scope, zoom in and out, tactical vs strategic, scope framing, design tension, architecture decision, feature fits system, system coherence check, local vs global design, build this inside that, wrong scope, design review, scope negotiation."
 effort: medium
 ---
 
@@ -12,7 +12,7 @@ Grounded in the observation that LLMs (and humans) produce fundamentally differe
 
 ## Core Concept
 
-Instead of rotating analytical lenses (IterativeDepth) or generating divergent ideas (BeCreative), ApertureOscillation holds the question constant but shifts the **scope envelope** around it across 3 structured passes:
+Instead of rotating analytical lenses (IterativeDepth) or generating divergent ideas, ApertureOscillation holds the question constant but shifts the **scope envelope** around it across 3 structured passes:
 
 1. **Narrow Aperture (Tactical-first):** The specific thing is primary. Big-picture context is background. This captures what the component naturally wants to be — its own internal logic and shape.
 
@@ -52,14 +52,13 @@ Concrete triggers:
 | Trigger | Workflow |
 |---------|----------|
 | "aperture oscillation", "oscillate scope", "zoom in/out", "tactical vs strategic" | `Workflows/Oscillate.md` |
-| Algorithm OBSERVE/THINK selects ApertureOscillation capability | `Workflows/Oscillate.md` |
 
 ## Quick Reference
 
 - **3 passes** — always 3 (narrow, wide, synthesis)
 - **2 inputs** — tactical target (what you're building) + strategic context (why, the bigger picture)
 - **Output** — design tensions, scope recommendations, coherence assessment
-- **Integration point** — OBSERVE (before ISC) or THINK (before approach commitment)
+- **Integration point** — before writing claims, or before committing to an approach
 
 ## Gotchas
 
@@ -89,13 +88,3 @@ Pass 1 (Narrow): Standard webhook receiver, queue, retry logic
 Pass 2 (Wide): Webhooks must flow through Arbol's action/function pattern, integrate with existing queue infrastructure
 Pass 3 (Synthesis): Tension — standalone webhook service vs. Arbol action. Resolution: implement as Arbol action, not standalone service, because the strategic context demands pipeline coherence over component independence.
 ```
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"ApertureOscillation","workflow":"Oscillate","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```
-
-Replace `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

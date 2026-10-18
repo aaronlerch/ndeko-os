@@ -308,7 +308,7 @@ TIMELINE: Re-evaluate in 8 weeks.
 
 - Runs after **CausalLoop** or **FindArchetype**
 - Reference material: `../LeveragePoints.md` for full treatment with more examples
-- Exits to **Ideate** or **BeCreative** for generating candidate interventions at the chosen level
+- Ends by generating candidate interventions at the chosen level
 
 ## Attribution
 

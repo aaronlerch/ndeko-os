@@ -8,18 +8,18 @@ Run 3 structured passes over the same question at different scope levels — nar
 
 This workflow is invoked:
 1. **Directly** by the user: "use aperture oscillation on this", "oscillate scope on this"
-2. **By the Algorithm** during OBSERVE or THINK when ApertureOscillation capability is selected
+2. **Before writing claims or committing to an approach** on substantial work, when a component has to fit a larger system
 3. **By other skills** that need scope-coherence analysis before committing to an approach
 
 ## Inputs
 
 - **Tactical Target:** The specific thing being built, designed, or decided. The narrow, concrete question.
 - **Strategic Context:** The bigger-picture goal, system vision, or purpose the tactical target serves.
-- **Current State (optional):** Any existing ISC criteria, approach decisions, or constraints already established.
+- **Current State (optional):** Any claims, approach decisions, or constraints already established.
 
 If invoked without explicit inputs, extract them from the conversation:
 - Tactical = the specific ask or task being worked on
-- Strategic = the broader goal, system, or vision mentioned in context (CLAUDE.md, TELOS, project context)
+- Strategic = the broader goal, system, or vision mentioned in context (CLAUDE.md, `~/.config/ndeko-os/goals.md`, project context)
 
 ## Execution
 
@@ -142,38 +142,18 @@ Focus on:
 ⚡ DESIGN TENSIONS:
 [Each tension with resolution recommendation]
 
-📋 ISC IMPLICATIONS:
-[New criteria, refined criteria, or anti-criteria surfaced by the oscillation]
+📋 CLAIM IMPLICATIONS:
+[New claims, refined claims, or anti-claims surfaced by the oscillation, each naming its probe]
 
 💡 Key Insight: [The most important thing that single-scope analysis would have missed]
 ```
 
-## Integration with Algorithm Phases
+## Where it fits
 
-When the Algorithm selects ApertureOscillation, it runs at one of two integration points:
+Two points in a run benefit:
 
-**During OBSERVE (before ISC):**
-```
-OBSERVE Phase:
-1. Reverse Engineering (standard)
-2. Capability Audit
-3. >>> APERTURE OSCILLATION (if selected) <<<
-   - Takes tactical target from the user's request
-   - Takes strategic context from project/TELOS/conversation context
-   - Surfaces design tensions before ISC criteria are written
-4. ISC CREATION (now informed by scope oscillation)
-```
-
-**During THINK (before approach commitment):**
-```
-THINK Phase:
-1. Riskiest Assumptions
-2. >>> APERTURE OSCILLATION (if selected) <<<
-   - Takes proposed approach as tactical target
-   - Takes broader system/project goals as strategic context
-   - Validates that the approach serves both local and system needs
-3. Approach commitment
-```
+- **Before writing claims** — the tactical target comes from the request, the strategic context from the project and goals; tensions surface before done is written down.
+- **Before committing to an approach** — the proposed approach is the tactical target; the oscillation checks it serves both the local need and the system.
 
 ## Combining with IterativeDepth
 
@@ -182,9 +162,9 @@ ApertureOscillation and IterativeDepth are complementary, not competing:
 - **IterativeDepth first** — understand the problem from multiple analytical angles
 - **ApertureOscillation second** — validate that the proposed solution serves both local and system needs
 
-At Deep (E4) or Comprehensive (E5) effort, using both in sequence produces the richest requirement set: IterativeDepth discovers the full problem space, ApertureOscillation ensures the solution fits the system.
+On high-stakes work, using both in sequence produces the richest requirement set: IterativeDepth discovers the full problem space, ApertureOscillation ensures the solution fits the system.
 
-## Agent Mode (for Algorithm delegation)
+## Agent Mode (for delegation)
 
 When spawning an agent to run ApertureOscillation:
 
@@ -201,6 +181,5 @@ TASK: Run 3 passes:
 2. WIDE — frame the strategic context as primary, tactical as derived  
 3. SYNTHESIS — compare the two framings, identify divergences and tensions
 
-OUTPUT: Design tensions found, alignment status, ISC implications.
-SLA: Complete within 45 seconds.
+OUTPUT: Design tensions found, alignment status, claim implications.
 ```

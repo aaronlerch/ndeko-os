@@ -90,7 +90,6 @@
   "model": "opus[1m]",
   "skillOverrides": {
     "ApertureOscillation": "user-invocable-only",
-    "ISA": "user-invocable-only",
     "IterativeDepth": "user-invocable-only"
   },
   "hooks": {

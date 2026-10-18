@@ -2,157 +2,84 @@
 
 ## Purpose
 
-Run N structured exploration passes over the same problem, each from a different lens, to extract richer ISC criteria than single-pass analysis produces.
+Run N structured exploration passes over the same problem, each from a different lens, to produce a richer claim set than single-pass analysis does.
 
 ## Invocation
 
-This workflow is invoked:
-1. **Directly** by the user: "use iterative depth on this problem"
-2. **By the Algorithm** during OBSERVE phase when the Capability Audit selects IterativeDepth
-3. **By other skills** that need enhanced requirement extraction
+1. **Directly**: "use iterative depth on this problem"
+2. **Before writing claims** on substantial work, when a missed requirement would be expensive
+3. **By other skills** that need deeper requirement extraction
 
 ## Inputs
 
-- **Problem/Request:** The original user request or problem statement
-- **Context:** Any available context (conversation history, codebase state, prior work)
-- **Depth:** Determined by SLA or explicit user request
+- **Problem/Request:** the original request or problem statement, verbatim
+- **Context:** conversation history, codebase state, prior work
+- **Depth:** a lens count the person named, otherwise read off the work
 
 ## Execution
 
-### Step 1: Determine Depth
+### Step 1: Choose depth
 
-```
-IF SLA = Instant → SKIP (return immediately, no iterative depth)
-IF SLA = Fast → N = 2 (Literal + Failure)
-IF SLA = Standard → N = 4 (Literal + Stakeholder + Failure + Experiential)
-IF SLA = Deep → N = 8 (All lenses)
-IF user specifies a number → N = that number (2-8)
-```
+- **2 lenses (Fast):** Literal + Failure — a quick check on modest work.
+- **4 lenses:** Literal + Stakeholder + Failure + Experiential — the usual choice for substantial work.
+- **8 lenses:** all of them — high blast radius or genuinely novel work.
+- A number the person gave wins (2-8).
 
-### Step 2: Load Lenses
+### Step 2: Load lenses
 
-Read `TheLenses.md` for the lens definitions being used this run.
+Read `TheLenses.md` for the lens definitions used this run.
 
-For domain-specific tasks, the ordering may be overridden:
+For domain-specific tasks, reorder:
 - Security tasks: Failure, Stakeholder, Temporal, Constraint Inversion
 - UX tasks: Experiential, Stakeholder, Literal, Analogical
 - Architecture tasks: Temporal, Constraint Inversion, Analogical, Meta
 - Ambiguous requests: Meta, Stakeholder, Literal, Failure
 
-### Step 3: Execute Passes
+### Step 3: Run the passes
 
-**For each lens (1 through N):**
+Each pass explores the problem only through its lens and records:
 
 ```
-┌─────────────────────────────────────────────┐
-│ 🔍 ITERATIVE DEPTH — Pass {i}/{N}: {LENS_NAME}                      │
-│                                                                       │
-│ Lens Question: "{The lens's core question}"                          │
-│                                                                       │
-│ Exploring from this angle...                                         │
-│                                                                       │
-│ Findings:                                                            │
-│ - [Finding 1 — potential ISC criterion]                              │
-│ - [Finding 2 — potential ISC criterion]                              │
-│ - [Finding 3 — refinement of existing criterion]                     │
-│                                                                       │
-│ New/Refined ISC:                                                     │
-│ + C{N}: [new criterion, 8-12 words, state not action]               │
-│ ~ C{M}: [refined criterion, was X, now Y]                           │
-│ + A{N}: [new anti-criterion]                                         │
-└─────────────────────────────────────────────┘
+🔍 ITERATIVE DEPTH — Pass {i}/{N}: {LENS_NAME}
+Lens question: "{the lens's core question}"
+
+Findings:
+- [finding — candidate claim]
+- [finding — refinement of an existing claim]
+
+Claims:
++ C{n}: [new claim] — probe: [the tool check that would falsify it]
+~ C{m}: [refined claim, was X, now Y]
++ A{n}: [new anti-claim: what must not happen]
 ```
 
-**Execution modes by SLA:**
-
-- **Fast (2 lenses):** Run both lenses inline as structured thought. No agents spawned. Output directly into the Algorithm's OBSERVE phase.
-
-- **Standard (4 lenses):** Run lenses 1-2 inline, then spawn 2 background agents for lenses 3-4 in parallel. Merge results.
-
-- **Deep (8 lenses):** Spawn 4 pairs of background agents (or 8 individual agents) for maximum parallelization. Each agent gets:
-  - The original problem/request
-  - Their assigned lens definition
-  - Current ISC criteria so far (from earlier lenses)
-  - Instruction: "Return 2-5 new ISC criteria or refinements from this lens"
-  - SLA: "Complete within 30 seconds"
+At 2 lenses, run both inline. At 4 or more, the later lenses can run as parallel read-only subagents; give each the problem, its lens definition, the claims found so far, and ask for 2-5 new claims or refinements from its lens only.
 
 ### Step 4: Synthesize
 
-After all passes complete:
-
-1. **Deduplicate:** Remove criteria that are semantically identical across lenses
-2. **Merge refinements:** If multiple lenses refined the same criterion, take the most specific version
-3. **Prioritize:** Order criteria by how many lenses surfaced them (consensus = high priority)
-4. **Format:** Output all new/refined criteria in ISC format (8-12 words, state not action, binary testable)
-
-### Step 5: Integrate
-
-Return the enriched criteria to the calling context:
-- If called from Algorithm OBSERVE: Feed directly into TaskCreate calls
-- If called standalone: Present the enriched criteria set to the user
+1. **Deduplicate** claims that are semantically identical across lenses.
+2. **Merge refinements** to the same claim, keeping the most specific version.
+3. **Prioritize** by how many lenses surfaced a claim (consensus = high priority).
+4. **Check every claim names its probe.** A claim with no falsifying tool check is not done yet.
 
 ## Output Format
 
 ```
 🔍 ITERATIVE DEPTH COMPLETE ({N} lenses applied)
 
-📊 Coverage:
-- Lenses used: {list of lens names}
-- New criteria discovered: {count}
-- Existing criteria refined: {count}
-- Anti-criteria discovered: {count}
+Lenses used: {list}
+New claims: {count} · Refined: {count} · Anti-claims: {count}
 
-📋 NEW ISC CRITERIA:
-[Use TaskCreate for each, prefixed "ISC-"]
+NEW CLAIMS
+- C{n}: [claim] — probe: [check]
 
-📋 REFINED ISC CRITERIA:
-[Use TaskUpdate for each, with evidence of what changed]
+REFINED CLAIMS
+- C{m}: [was → now, and why]
 
-📋 NEW ANTI-CRITERIA:
-[Use TaskCreate for each, prefixed "ISC-A"]
+ANTI-CLAIMS
+- A{n}: [what must not happen] — probe: [check]
 
-💡 Key Insight: [The most surprising finding across all lenses — the thing single-pass analysis would have missed]
+💡 Key insight: [the most surprising finding — what single-pass analysis would have missed]
 ```
 
-## Agent Prompt Template (for Deep SLA)
-
-When spawning agents for individual lenses:
-
-```
-CONTEXT: You are performing Iterative Depth analysis — examining a problem from a specific structured angle to discover requirements that other angles miss.
-
-PROBLEM: {original user request / problem statement}
-
-YOUR LENS: {lens name} — {lens description}
-YOUR QUESTION: {lens core question}
-
-CURRENT ISC (from prior lenses):
-{list of criteria already discovered}
-
-TASK: Explore this problem EXCLUSIVELY through your assigned lens. Do NOT repeat criteria already found. Find what only YOUR lens can see.
-
-OUTPUT FORMAT:
-- 2-5 new ISC criteria (8-12 words each, state not action, binary testable)
-- 0-3 refinements to existing criteria (what changed and why)
-- 0-2 anti-criteria (what must NOT happen)
-
-SLA: Complete within 30 seconds.
-```
-
-## Integration with Algorithm OBSERVE Phase
-
-When the Capability Audit selects IterativeDepth (#4 Skills match), it runs AFTER the initial Reverse Engineering block but BEFORE ISC CREATION. The flow becomes:
-
-```
-OBSERVE Phase:
-1. Reverse Engineering (standard — what they said/implied/don't want)
-2. Capability Audit (standard — 20/20 scan)
-3. >>> ITERATIVE DEPTH (if selected) <<<
-   - Takes Reverse Engineering output as input
-   - Runs N lenses over it
-   - Produces enriched requirement understanding
-4. ISC CREATION (now informed by iterative depth findings)
-5. ISC Quality Gate (standard)
-```
-
-This means ISC criteria benefit from multi-angle exploration BEFORE they're created, rather than being corrected after the fact.
+The claims feed straight into the run's done-definition (`~/.claude/algorithm/LATEST`); standalone, present them to the person.

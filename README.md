@@ -207,7 +207,7 @@ Roughly grouped:
 - **Integrations** — `GoogleWorkspace`, `McpShim`, `Research`
 - **Authoring** — `Writing` — drafts in a measured voice, per channel, with a deterministic `VoiceCheck`. The method ships here; every measurement loads from the data tree.
 - **Media** — `Say`, `Speak`, `VoiceClone`, `ChatterboxTTS`, `AudioEditor`, `Remotion`, `DemoVideo` (narrated demo videos recorded by driving a real browser)
-- **Meta** — `BitterPillEngineering` (audits instruction sets for over-prompting), `NdekoInstall` (interviews a new user and writes their data tree), `ISA`, `ApertureOscillation`, `PrivateInvestigator`
+- **Meta** — `BitterPillEngineering` (audits instruction sets for over-prompting), `NdekoInstall` (interviews a new user and writes their data tree), `ApertureOscillation`, `PrivateInvestigator`
 
 Skills reference their own files through `${NDEKO_DIR}`, which `settings.json` sets to `$HOME/.claude`.
 

@@ -104,11 +104,7 @@ Check:
 
 ### Step 7: Render
 
-Concept maps benefit enormously from visual rendering. Render as Mermaid (Artifacts draw ```mermaid fences natively; see `artifact-diagramming`):
-
-```bash
-Skill("Art", "Mermaid concept map with focus question [Q], concepts: [list], labeled links: [list], cross-links: [list]")
-```
+Concept maps benefit enormously from visual rendering. Render as Mermaid (Artifacts draw ```mermaid fences natively; see `artifact-diagramming`): the focus question as the title, one node per concept, every link labeled, cross-links visually distinct.
 
 Mermaid or graphviz both work. Mermaid renders inline in most editors; graphviz produces higher-quality static images.
 
@@ -143,39 +139,34 @@ KEY INSIGHTS:
 - [Insight from cross-link 2]
 ```
 
-## Worked Example — Algorithm Subsystems
+## Worked Example — the Algorithm's evidence loop
 
 ```
-FOCUS QUESTION: What are the subsystems of the Algorithm, and how do they interact?
+FOCUS QUESTION: How does the Algorithm turn a goal into proof that the goal was met?
 
 CONCEPTS (general → specific):
-- Algorithm (root)
-- Phases, ISC Quality System, ISA, Capabilities
-- OBSERVE, THINK, PLAN, BUILD, EXECUTE, VERIFY, LEARN
-- FeedbackMemoryConsult, Advisor, LiveProbe, ConflictSurfacing
-- IterativeDepth, ApertureOscillation, FirstPrinciples, Council, RedTeam, Science, SystemsThinking, RootCauseAnalysis
+- Run (root)
+- Goal, Claims, Evidence, Teeth
+- Claim, Anti-claim, Probe
+- HOOK, CHECK, VerificationGate, [DEFERRED]
 
 PROPOSITIONS:
-- Algorithm → [has phases] → {OBSERVE, THINK, ..., LEARN}
-- Algorithm → [uses] → ISA
-- Algorithm → [enforces] → ISC Quality System
-- OBSERVE → [selects] → Capabilities
-- Capabilities → [include thinking skills] → {IterativeDepth, FirstPrinciples, ..., SystemsThinking, RootCauseAnalysis}
-- THINK → [invokes] → Thinking skills
-- VERIFY → [enforces] → Verification Doctrine
-- Verification Doctrine → [includes] → {LiveProbe, Advisor, ConflictSurfacing}
-- PLAN → [begins with] → FeedbackMemoryConsult
-- LEARN → [writes to] → harness memory
+- Run → [starts from] → Goal (recorded verbatim)
+- Goal → [is defined by] → Claims
+- Claims → [include] → {Claim, Anti-claim}
+- Claim → [names] → Probe (the tool check that would falsify it)
+- Probe → [produces] → Evidence
+- Evidence → [closes] → Claim
+- Teeth → [come in two kinds] → {HOOK, CHECK}
+- VerificationGate → [is the HOOK on] → closing a claim without evidence
 
 CROSS-LINKS:
-- ISC Quality System → [gates exit of] → OBSERVE  (governance cross-link)
-- Advisor → [re-invoked by] → ConflictSurfacing (recursion cross-link)
-- LEARN → [informs future] → OBSERVE (next-session cross-link)
+- Probe → [must match the modality of] → Claim (a curl cannot close a browser claim)
+- [DEFERRED] → [holds] → Claim (when the probe cannot run yet, with a named follow-up)
 
 INSIGHTS:
-- The Algorithm is not linear — OBSERVE and LEARN are connected across sessions via Knowledge Archive.
-- The Verification Doctrine has an internal loop (ConflictSurfacing re-invokes Advisor), which is a first-order structural protection against motivated reasoning.
-- Thinking capabilities are selected in OBSERVE but invoked in THINK — separation of concerns.
+- The probe is the hinge: a claim with no probe has no gradient, so the run cannot tell progress from drift.
+- There is no self-attestation tier — every claim's teeth are external to the model's own judgment.
 ```
 
 ## Common Mistakes
@@ -202,8 +193,7 @@ INSIGHTS:
 
 - Feeds **Iceberg** — Layer 3 (structure) often benefits from a concept map of the actors and relationships
 - Feeds **CausalLoop** — concepts and relationships from the map inform variables and arrows
-- Pairs with **Knowledge** skill — concept maps make excellent Knowledge Archive entries
-- Rendered via **Art** skill — Mermaid, Graphviz, or d2
+- Rendered as Mermaid, Graphviz, or d2 (see Step 7)
 
 ## Attribution
 

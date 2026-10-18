@@ -36,7 +36,7 @@ Thesis-antithesis-synthesis cycles. Examining a proposition, then its negation, 
 **5. Reflective Equilibrium** (John Rawls, 1971; Nelson Goodman, 1955)
 Justified belief emerges from working back and forth between particular judgments and general principles, adjusting each in light of the other until coherence is achieved. Explicitly iterative, with no fixed endpoint.
 - *Source: A Theory of Justice (1971); Fact, Fiction, and Forecast (1955); Stanford Encyclopedia of Philosophy*
-- *Maps to: Each pass tests emerging understanding against a new angle, revising until the ISC model coheres*
+- *Maps to: Each pass tests emerging understanding against a new angle, revising until the claim set coheres*
 
 **6. Equilibration** (Jean Piaget, 1975)
 Cognitive development proceeds through cycles of disequilibrium and equilibrium. New information conflicting with existing schemas forces accommodation — restructuring mental models. This is THE driver of cognitive growth.
@@ -68,7 +68,7 @@ Learning with multiple representations of the same content supports deeper under
 **11. Self-Consistency** (Wang et al., 2022)
 Sample multiple diverse reasoning paths for the same problem, select the most consistent answer. Achieved +17.9% on GSM8K, +11.0% on SVAMP, +12.2% on AQuA over single-path chain-of-thought.
 - *Source: arXiv:2203.11171*
-- *Maps to: Multiple reasoning paths = multiple lenses on the same ISC extraction*
+- *Maps to: Multiple reasoning paths = multiple lenses on the same requirement extraction*
 
 **12. Multi-Agent Debate** (Du et al., 2023)
 Multiple AI agents examine the same problem, debate their findings, and converge on better answers through structured disagreement.
@@ -77,7 +77,7 @@ Multiple AI agents examine the same problem, debate their findings, and converge
 
 **13. Ensemble Methods** (Breiman, Schapire, Freund)
 Combining multiple models/runs yields accuracy no single model achieves. Bagging, boosting, and random forests all exploit diverse perspectives on the same data.
-- *Maps to: Combining multiple ISC extraction passes = ensemble of requirements*
+- *Maps to: Combining multiple requirement-extraction passes = ensemble of requirements*
 
 **14. DiVeRSe (Diverse Verifier on Reasoning Step)** (Li et al., 2023)
 Generating diverse prompts for the same problem and verifying each reasoning step. Structural diversity in prompting yields better coverage.
@@ -96,7 +96,7 @@ Examining the same system from an adversary's perspective to uncover security an
 
 **17. Progressive Elaboration** (PMBOK/PMI)
 Iterative refinement of project understanding over time. Each pass adds detail and precision to requirements that were initially vague.
-- *Maps to: Each iteration adds precision to ISC criteria*
+- *Maps to: Each iteration adds precision to the claims*
 
 ### Design Thinking & Problem Solving
 

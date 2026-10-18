@@ -10,7 +10,7 @@ The Iceberg Model (popularized by Michael Goodman and the Academy for Systemic C
 
 This workflow is invoked:
 1. **Directly by the user:** "iceberg this", "walk down the iceberg", "why does this keep happening"
-2. **By the Algorithm** when OBSERVE capability scan selects SystemsThinking with a recurring-problem signal
+2. **Before writing claims** for work on a problem that keeps recurring
 3. **By the RootCauseAnalysis skill** — its Postmortem workflow hands off to Iceberg when patterns repeat across incidents
 
 ## The Four Layers
@@ -222,7 +222,7 @@ RECOMMENDED: structural fix (post-deploy p99 gate + ownership). Patches alone ar
 - Feeds **CausalLoop** when Layer 3 structure is a feedback loop that deserves explicit diagramming.
 - Feeds **FindArchetype** when Layer 2 pattern matches a known systems archetype.
 - Handoffs to **RootCauseAnalysis/Postmortem** if the investigation reveals a single incident rather than a pattern.
-- Output informs **ISC criteria** in OBSERVE — structural criteria, not just symptom criteria.
+- Output informs the run's **claims** — structural claims, not just symptom claims.
 
 ## Attribution
 

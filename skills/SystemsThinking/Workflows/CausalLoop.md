@@ -199,14 +199,9 @@ This is Meadows' **"Limits to Growth"** archetype — see `FindArchetype` workfl
 - **Exogenous variables** (outside the model) drawn without incoming arrows, in a distinct color/shape
 - **Stocks** (accumulations) vs **Flows** (rates) — advanced stock-and-flow notation; use when the CLD underdetermines behavior
 
-## Rendering via Art Skill
+## Rendering
 
-To render a CLD as an actual diagram:
-
-```bash
-# Render as Mermaid in an Artifact
-Skill("Art", "Mermaid flowchart showing causal loop diagram with R1 and B1 loops, variables: [list], arrows with polarity: [list]")
-```
+To render a CLD as an actual diagram, write it as a Mermaid flowchart in an Artifact (see `artifact-diagramming`): one node per variable, each arrow labeled with its polarity, and the R1/B1 loop labels placed inside their loops.
 
 ## Common Mistakes
 
