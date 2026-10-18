@@ -19,7 +19,7 @@ Look at the repo to decide consumption mode:
 
 ### Claude skill
 ```bash
-# Copy the vetted skill into your skills dir (rename to TitleCase or _ALLCAPS per convention):
+# Copy the vetted skill into your skills dir as PascalCase (leading _ only for a service-integration skill); the volume is case-insensitive, so check for a name collision first:
 cp -R <repo> ${NDEKO_DIR}/skills/<SkillName>
 # Then read its SKILL.md frontmatter; it self-activates on triggers. Verify with /<skillname> or a trigger phrase.
 ```

@@ -316,7 +316,7 @@ made · `NOTE` a doc or rule edit. Reserve `BAD` and `LOCK` for what is actually
 broken and actually one-way — a page of red is as unskimmable as a page of none.
 
 Publish with `capabilities: {db: {}}` — the page cannot save a response without
-it — plus a favicon and a one-sentence description.
+it — plus an `icon` and a one-sentence `description`.
 
 ### What the terminal gets
 

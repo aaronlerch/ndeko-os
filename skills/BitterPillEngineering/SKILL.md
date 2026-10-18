@@ -30,7 +30,7 @@ Two mappings worth holding while auditing, because they are the same test from b
 ```
 User: "Run BPE on my setup"
 → Invokes Audit workflow
-→ Reads all force-loaded files from settings.json
+→ Reads the always-loaded set (system prompt, CLAUDE.md and its imports)
 → Evaluates each rule against the Five Questions
 → Returns categorized report with estimated token savings
 ```
@@ -77,7 +77,7 @@ For every rule, instruction, or preference found, evaluate:
 | Duplicates another rule | **MERGE** — one location, one statement |
 | One-off fix for past mistake | **EVALUATE** — still relevant or already learned? |
 | Vague / unquantifiable | **SHARPEN** — add specific DO/DON'T examples, or cut |
-| Loaded but rarely actionable | **MOVE to on-demand** — load via CONTEXT_ROUTING when needed |
+| Loaded but rarely actionable | **MOVE to on-demand** — load via a context pointer (`doctrine/authoring.md`) when needed |
 | Specific, actionable, non-default | **KEEP** — this is what good instructions look like |
 
 ## Anti-Fragile vs Fragile
@@ -117,12 +117,4 @@ For every rule, instruction, or preference found, evaluate:
 - [rule] — [why it matters]
 
 **Estimated savings:** [lines] lines, ~[tokens] tokens
-```
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"BitterPillEngineering","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
 ```

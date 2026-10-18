@@ -1,6 +1,6 @@
 ---
 name: FirstPrinciples
-description: "Physics-based reasoning framework (Musk/Elon methodology) that deconstructs problems to irreducible fundamental truths rather than reasoning by analogy. Three-step structure: DECONSTRUCT (break to constituent parts and actual values), CHALLENGE (classify every element as hard constraint / soft constraint / unvalidated assumption — only physics is truly immutable), RECONSTRUCT (build optimal solution from fundamentals alone, ignoring inherited form). Outputs: constituent-parts breakdown, constraint classification table, and reconstructed solution with key insight. Three workflows: Deconstruct.md, Challenge.md, Reconstruct.md. Integrates with RedTeam (attack assumptions before deploying adversarial agents), Security (decompose threat model), Architecture (challenge design constraints), and Pentesters (decompose assumed security boundaries). Other skills invoke via: Challenge on all stated constraints → classify as hard/soft/assumption. Cross-domain synthesis: solutions from unrelated fields often apply once the fundamental truths are exposed. NOT FOR incident investigation and causal chains (use RootCauseAnalysis). NOT FOR structural feedback loops (use SystemsThinking). USE WHEN first principles, fundamental truths, challenge assumptions, is this a real constraint, rebuild from scratch, what are we actually paying for, what is this really made of, start over, physics first, question everything, reasoning by analogy, is this really necessary."
+description: "Physics-based reasoning framework (Musk/Elon methodology) that deconstructs problems to irreducible fundamental truths rather than reasoning by analogy. Three-step structure: DECONSTRUCT (break to constituent parts and actual values), CHALLENGE (classify every element as hard constraint / soft constraint / unvalidated assumption — only physics is truly immutable), RECONSTRUCT (build optimal solution from fundamentals alone, ignoring inherited form). Outputs: constituent-parts breakdown, constraint classification table, and reconstructed solution with key insight. Three workflows: Deconstruct.md, Challenge.md, Reconstruct.md. Integrates with RedTeam (attack assumptions before deploying adversarial agents). Other skills invoke via: Challenge on all stated constraints → classify as hard/soft/assumption. Cross-domain synthesis: solutions from unrelated fields often apply once the fundamental truths are exposed. NOT FOR incident investigation and causal chains (use RootCauseAnalysis). NOT FOR structural feedback loops (use SystemsThinking). USE WHEN first principles, fundamental truths, challenge assumptions, is this a real constraint, rebuild from scratch, what are we actually paying for, what is this really made of, start over, physics first, question everything, reasoning by analogy, is this really necessary."
 effort: high
 ---
 
@@ -191,13 +191,3 @@ When using FirstPrinciples, output should include:
 - **Decompose to AXIOMS — fundamental truths, not just simpler components.** The value is in finding the irreducible elements.
 - **Challenge INHERITED assumptions specifically.** What does everyone assume that might be wrong?
 - **This is analysis/reasoning, not implementation.** "Analyze" = FirstPrinciples. "Fix" = do the work directly.
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"FirstPrinciples","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```
-
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

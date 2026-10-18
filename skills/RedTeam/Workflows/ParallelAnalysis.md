@@ -29,7 +29,7 @@ Produce an 8-point story explanation (12-16 words each) representing the stronge
 
 ## PHASE 1: Decomposition Protocol
 
-### Step 1.0: First Principles Deconstruction (NEW)
+### Step 1.0: First Principles Deconstruction
 **Before traditional decomposition, invoke FirstPrinciples/Deconstruct:**
 
 ```
@@ -70,7 +70,7 @@ Each claim should be:
 ## PHASE 2: Parallel Agent Deployment
 
 ### Launch Protocol
-Deploy 32 agents in a SINGLE message with multiple Task tool calls. Each agent receives:
+Launch the attackers in a single message with multiple Agent tool calls. Each agent receives:
 1. The full original argument
 2. The 24-claim decomposition
 3. Their specific personality and attack angle
@@ -363,7 +363,7 @@ The 8-point sequence should:
 
 ```
 □ PHASE 1: Decomposition
-  □ Invoke FirstPrinciples/Deconstruct on the argument (NEW)
+  □ Invoke FirstPrinciples/Deconstruct on the argument
   □ Read and understand the full argument
   □ Extract central thesis
   □ Identify supporting claims
@@ -392,7 +392,7 @@ The 8-point sequence should:
   □ Present the STRONGEST case FOR the argument
 
 □ PHASE 5: Counter-Argument
-  □ Invoke FirstPrinciples/Challenge on all constraints (NEW)
+  □ Invoke FirstPrinciples/Challenge on all constraints
   □ Classify constraints as HARD/SOFT/ASSUMPTION
   □ Apply first-principles analysis (claim type, assumptions, precedent, validity)
   □ Draft 8-point counter-argument
@@ -440,7 +440,7 @@ The 8-point sequence should:
 ## Integration Notes
 
 **This workflow requires:**
-- Task tool for launching parallel agents
+- Agent tool for launching parallel agents
 - Ability to launch 32+ agents simultaneously
 - Synthesis capability to process multiple agent outputs
 - **FirstPrinciples skill** for Deconstruct (Phase 1) and Challenge (Phase 5)

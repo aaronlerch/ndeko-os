@@ -3,7 +3,7 @@
 ## Skill Integration Order
 
 **Use BEFORE RedTeam:**
-- `Research` — gather context, find precedents
+- Web research or a read-only subagent — gather context, find precedents
 - `FirstPrinciples` — decompose the claim set before attacking it
 
 **Use DURING RedTeam:**

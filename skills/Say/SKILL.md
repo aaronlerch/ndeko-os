@@ -1,6 +1,6 @@
 ---
 name: say
-description: Speak text aloud using a Chatterbox voice profile. Reads the default voice from ${NDEKO_DATA_DIR}/voice-profiles/.default (currently `aaron`) unless overridden with --voice. Plays the result via afplay automatically. USE WHEN say, speak, read aloud, voice out, speak this, say aloud, tts this, talk, narrate.
+description: Speak text aloud in a cloned Chatterbox voice, with cue tags like [sigh] and [laugh]. Reads the default voice from ${NDEKO_DATA_DIR}/voice-profiles/.default unless overridden with --voice. Plays via afplay automatically. USE WHEN say, say aloud, say this in my voice, speak as a profile, cloned voice, cue tags, expressive read. NOT FOR fast or long narration in a stock voice — that is /speak.
 user-invocable: true
 allowed-tools:
   - Bash

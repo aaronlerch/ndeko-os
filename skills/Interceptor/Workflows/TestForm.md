@@ -5,7 +5,7 @@
 - Testing signup, login, or contact forms after changes
 - Verifying form validation behavior (required fields, email format, etc.)
 - Checking that form submissions reach the correct API endpoint
-- Testing forms on authenticated pages where agent-browser can't reach
+- Testing forms on authenticated pages
 
 ## Steps
 
@@ -125,4 +125,4 @@ interceptor type "textbox:Name" "A very long name that might break layout assump
 - `interceptor type` clears the field before typing. Use `interceptor type <ref> "text" --append` to add to existing content.
 - For dropdowns/selects, use `interceptor select <ref> "value"` instead of click-based selection.
 - Network log captures the actual API request triggered by form submission — useful for verifying the correct endpoint and payload shape.
-- For password fields, use `interceptor act <ref> "value" --os` for OS-level trusted input that bypasses autocomplete detection.
+- For password fields, type by 1Password reference, never a literal value: `interceptor type <ref> --secret op://<vault>/<item>/<field>` (see SKILL.md → Credentials). `--trusted` is the OS-level input escalation when synthetic input is rejected.

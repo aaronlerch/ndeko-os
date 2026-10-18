@@ -6,23 +6,6 @@ effort: high
 context: fork
 ---
 
-## ⚠️ MANDATORY TRIGGER
-
-**When user says "research" (in any form), ALWAYS invoke this skill.**
-
-| User Says | Action |
-|-----------|--------|
-| "research" / "do research" / "research this" | → Standard mode (4 agents: Claude + Gemini + Grok + Perplexity + cross-check) |
-| "quick research" / "minor research" | → Quick mode (1 Perplexity agent) |
-| "extensive research" / "deep research" | → Extensive mode (7 explorers + 2 verifiers) |
-| "deep investigation" / "investigate [topic]" / "map the [X] landscape" | → Deep Investigation (iterative + verification) |
-
-**"Research" alone = Standard mode. No exceptions.**
-
-# Research Skill
-
-Comprehensive research, analysis, and content extraction system.
-
 ## MANDATORY: URL Verification
 
 **READ:** `UrlVerificationProtocol.md` - Every URL must be verified before delivery.
@@ -91,13 +74,7 @@ See `Workflows/Verify.md` for full verification protocol.
 
 ## Integration
 
-### Feeds Into
-- **blogging** - Research for blog posts
-- **newsletter** - Research for newsletters
-- **xpost** - Create posts from research
-
 ### Uses
-- **be-creative** - deep thinking for extract alpha
 - **PrivateInvestigator** - for locating or verifying a specific person
 - **Interceptor** - real Chrome, real sessions; the escalation path when a fetch is blocked
 
@@ -173,13 +150,3 @@ User: "do a deep investigation of the AI agent market"
 → Builds persistent knowledge vault in MEMORY/RESEARCH/
 → Multi-session capable; drive repeated passes with the harness `/loop`
 ```
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Research","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```
-
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

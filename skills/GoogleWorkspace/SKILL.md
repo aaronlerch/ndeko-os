@@ -59,7 +59,7 @@ One per Google Workspace service. Read the matching file when starting work on t
 | Cross-service workflows | `gws-workflow/SKILL.md` |
 | Model Armor safety filtering | `gws-modelarmor/SKILL.md` |
 
-## 2. Helper Commands (26 files)
+## 2. Helper Commands (25 files)
 
 Thin wrappers over common ops. Prefer these over raw API calls when they match the intent — they handle ergonomic details (MIME parsing, threading, auto-metadata) you shouldn't re-derive.
 

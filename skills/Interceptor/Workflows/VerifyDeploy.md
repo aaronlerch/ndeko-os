@@ -3,9 +3,8 @@
 ## When to Use
 
 - After deploying any web project
-- When the Algorithm's Verification Doctrine Rule 1 requires live-probe evidence
+- When `~/.claude/doctrine/verification.md` rule 1 (modality fidelity) requires a real-browser probe
 - After CSS/layout/content changes that need visual confirmation
-- When agent-browser can't reach the page (auth wall, bot detection)
 
 ## Steps
 
@@ -71,4 +70,4 @@ If errors found: report the specific errors (console, network, visual) before at
 
 - For authenticated pages, Interceptor uses your real Chrome login sessions. No profile setup needed.
 - Always use `http://localhost:PORT` instead of `localhost:PORT` for local dev URLs.
-- If Chrome is not running, start it first. Interceptor requires an active Chrome instance with the extension loaded.
+- If no browser with the extension is running, start one first.

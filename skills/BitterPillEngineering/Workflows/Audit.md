@@ -6,11 +6,7 @@ Full audit of all force-loaded AI instructions for over-prompting.
 
 ### 1. Discover what's loaded
 
-Read `settings.json` to find:
-- `loadAtStartup.files` — force-loaded every session
-- `postCompactRestore.fullFiles` — re-loaded after compaction
-- `dynamicContext` sections — relationship, learning, work summaries
-- CLAUDE.md — native instruction file
+The always-loaded set is `~/.claude/system-prompt.md` (the `ndeko` output style), `~/.claude/CLAUDE.md`, and everything `CLAUDE.md` `@`-imports. Confirm it against the live files each time (SKILL.md, Gotchas).
 
 Also check for project-level CLAUDE.md files if working in a specific project.
 

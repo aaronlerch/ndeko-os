@@ -1,7 +1,7 @@
 ---
 name: PrivateInvestigator
 disable-model-invocation: true
-description: "Ethical people-finding and identity verification using 15 parallel research agents (5 types x 3 each = 45 concurrent search threads) across people search aggregators, social media, public records, and reverse lookups. Covers TruePeopleSearch, FastPeopleSearch, Spokeo, voter registration, county property records, court portals (PACER, CourtListener), professional licenses, Facebook/LinkedIn/Instagram x-ray searches, and username enumeration (Sherlock, WhatsMyName). Phone reverse lookup via CallerID, NumLookup, carrier lookup. Email reverse lookup via Epieos, Holehe, Hunter.io. Image reverse search via PimEyes, TinEye, Google/Yandex Images. Google dorking (site:linkedin.com, filetype:pdf resume) across foundation, primary, deep, and verification tiers. Produces confidence-scored results (HIGH/MEDIUM/LOW/POSSIBLE) requiring 3+ matching identifiers before acting. Workflows: FindPerson, SocialMediaSearch, PublicRecordsSearch, ReverseLookup, VerifyIdentity. Stops immediately if purpose shifts toward harassment or stalking. USE WHEN: find person, locate person, reconnect, lost contact, old friend, reverse phone lookup, who owns this email, reverse image search, find by username, verify identity, people search, background check public data only, who is this caller, who owns this address. NOT FOR structured due-diligence or company/entity intelligence investigations (use OSINT)."
+description: "Ethical people-finding and identity verification using 15 parallel research agents (5 types x 3 each = 45 concurrent search threads) across people search aggregators, social media, public records, and reverse lookups. Covers TruePeopleSearch, FastPeopleSearch, Spokeo, voter registration, county property records, court portals (PACER, CourtListener), professional licenses, Facebook/LinkedIn/Instagram x-ray searches, and username enumeration (Sherlock, WhatsMyName). Phone reverse lookup via CallerID, NumLookup, carrier lookup. Email reverse lookup via Epieos, Holehe, Hunter.io. Image reverse search via PimEyes, TinEye, Google/Yandex Images. Google dorking (site:linkedin.com, filetype:pdf resume) across foundation, primary, deep, and verification tiers. Produces confidence-scored results (HIGH/MEDIUM/LOW/POSSIBLE) requiring 3+ matching identifiers before acting. Workflows: FindPerson, SocialMediaSearch, PublicRecordsSearch, ReverseLookup, VerifyIdentity. Stops immediately if purpose shifts toward harassment or stalking. USE WHEN: find person, locate person, reconnect, lost contact, old friend, reverse phone lookup, who owns this email, reverse image search, find by username, verify identity, people search, background check public data only, who is this caller, who owns this address. NOT FOR structured due-diligence or company/entity intelligence investigations (use Research)."
 effort: high
 ---
 
@@ -205,13 +205,3 @@ User: "Find Jane Doe's social media, she's a marketing professional in Denver"
 - **Ethical framework is mandatory.** Legitimate purposes only — reconnection, due diligence, safety. No stalking or harassment.
 - **15 parallel agents can hit rate limits on public records APIs.** Stagger launches if services throttle.
 - **Verify findings across multiple sources.** Single-source results are unreliable.
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"PrivateInvestigator","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```
-
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

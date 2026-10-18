@@ -360,7 +360,7 @@ Cannot proceed - fix logical issues before rendering
 
 **MANDATORY: Apply Theme**
 ```typescript
-import { THEME } from '${NDEKO_DIR}/skills/Remotion/theme'
+import { THEME } from '${NDEKO_DIR}/skills/Remotion/Tools/Theme'
 
 // All components MUST use:
 // - THEME.colors for all colors
@@ -375,8 +375,8 @@ import { THEME } from '${NDEKO_DIR}/skills/Remotion/theme'
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ STEP 5: RENDER                                                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 1. Install dependencies: npm install                                        │
-│ 2. Render: npx remotion render {composition-id} ~/Downloads/{name}.mp4     │
+│ 1. Install dependencies: bun install                                        │
+│ 2. Render: bunx remotion render {composition-id} ~/Downloads/{name}.mp4    │
 │ 3. Open for preview: open ~/Downloads/{name}.mp4                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

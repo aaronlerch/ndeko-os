@@ -1,6 +1,6 @@
 ---
 name: RedTeam
-description: "Military-grade adversarial analysis that deploys 32 parallel expert agents (engineers, architects, pentesters, interns) to stress-test ideas, strategies, and plans — not systems or infrastructure. Two workflows: ParallelAnalysis (5-phase: decompose into 24 atomic claims → 32-agent parallel attack → synthesis → steelman → counter-argument, each 8 points) and AdversarialValidation (competing proposals synthesized into best solution). Context files: Philosophy.md (core principles, success criteria, agent types), Integration.md (how to combine with FirstPrinciples, Council, and other skills; output format). Targets arguments, not network vulnerabilities. Findings ranked by severity; goal is to strengthen, not destroy — weaknesses delivered with remediation paths. Collaborates with FirstPrinciples (decompose assumptions before attacking) and Council (Council debates to find paths; RedTeam attacks whatever survives). Also invoked internally by Ideate (TEST phase) and WorldThreatModel (horizon stress-testing). NOT FOR AI instruction set auditing (use BitterPillEngineering). NOT FOR network/system vulnerability testing (use a security assessment skill). USE WHEN red team, attack idea, counterarguments, critique, stress test, devil's advocate, find weaknesses, break this, poke holes, what could go wrong, strongest objection, adversarial validation, battle of bots."
+description: "Military-grade adversarial analysis that deploys 32 parallel expert agents (engineers, architects, pentesters, interns) to stress-test ideas, strategies, and plans — not systems or infrastructure. Two workflows: ParallelAnalysis (5-phase: decompose into 24 atomic claims → 32-agent parallel attack → synthesis → steelman → counter-argument, each 8 points) and AdversarialValidation (competing proposals synthesized into best solution). Context files: Philosophy.md (core principles, success criteria, agent types), Integration.md (how to combine with FirstPrinciples and other skills; output format). Targets arguments, not network vulnerabilities. Findings ranked by severity; goal is to strengthen, not destroy — weaknesses delivered with remediation paths. Collaborates with FirstPrinciples (decompose assumptions before attacking). NOT FOR AI instruction set auditing (use BitterPillEngineering). NOT FOR network/system vulnerability testing (use a security assessment skill). USE WHEN red team, attack idea, counterarguments, critique, stress test, devil's advocate, find weaknesses, break this, poke holes, what could go wrong, strongest objection, adversarial validation, battle of bots."
 effort: high
 ---
 
@@ -81,13 +81,3 @@ User: "battle of bots - which approach is better for this feature?"
 - **RedTeam is for attacking IDEAS, not systems.** This skill finds flaws in arguments, strategies, and plans — not network vulnerabilities.
 - **32 adversarial agents generate volume — not all findings are equal.** Rank by severity, discard noise.
 - **The goal is to strengthen, not destroy.** Present weaknesses constructively with remediation paths.
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"RedTeam","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```
-
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

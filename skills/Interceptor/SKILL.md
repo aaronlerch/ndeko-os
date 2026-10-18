@@ -398,7 +398,7 @@ interceptor help [<command>]
 
 ## Key Rules
 
-- **Requires Chrome running** — it's an extension, not a standalone binary.
+- **Requires a running browser (Chrome, Brave, or Safari) with the extension loaded** — it's an extension, not a standalone binary.
 - **Refs use eN syntax** — `e12` not `@e12`. No `@` prefix.
 - **Cross-frame refs** — `read --include-frames` returns refs like `e<frameId>_<n>` for non-top frames.
 - **Plain text output is the default and the one to read.** `--json` is for piping
@@ -427,9 +427,9 @@ Agent(subagent_type="general-purpose", prompt="
 
 ## Gotchas
 
-- **The `interceptor-browser`, `interceptor-macos` and `interceptor-research` skills are the fork's own, generated for macOS.** `scripts/build.sh` writes them to `dist/skills`; `~/.claude/skills/interceptor-*` link there. They are the command reference — this skill carries the house rules on top. The repo's `.agents/skills/` are *sources* with Windows/Linux lines and OS markers: never link those directly. After a build, `interceptor skills adopt --into claude --force` refreshes the links. `claude/interceptor: name-collision` in `skills status` is expected — this `Interceptor` skill holds that name. *(2026-10-16; supersedes the 2026-09-06 "never adopt" rule, written when those skills still taught the removed credential verbs.)*
-- **Screenshot ignores scroll position.** `interceptor screenshot` (with or without `--full`) captures from y=0 of the document — it does not honor `window.scrollTo`, `scrollIntoView`, `scroll bottom`, or `keys End`. For tall pages, content below the fold is unreachable through screenshot. Workaround: render the section of interest at its own short URL (`/problems.html`, `/section-3.html`) and screenshot that page directly. The `--clip "x,y,w,h"` flag returns "Cannot read properties of undefined" — broken in the current build. *(2026-04-27)*
-- **`--clip` is broken but `--region` and `--selector` are NOT — reach for those instead.** `interceptor help screenshot` lists `--clip` as a deprecated alias for `--region`; the alias is what's broken, the real flag works. `--region X,Y,W,H` crops any band of a tall page (coordinates are full-page document pixels — the same space `--full` captures in), and `--selector "figure.foo"` / `--element N` capture one element directly, off-screen ones included. `--scale 2` gets retina detail for inspecting type and 1px strokes. Don't fall back to re-rendering sections at separate URLs — that workaround predates these flags. *(2026-08-06)*
+- **The `interceptor-browser`, `interceptor-macos` and `interceptor-research` skills are the fork's own, generated for macOS.** `scripts/build.sh` writes them to `dist/skills`; `~/.claude/skills/interceptor-*` link there. They are the command reference — this skill carries the house rules on top. The repo's `.agents/skills/` are *sources* with Windows/Linux lines and OS markers: never link those directly. After a build, `interceptor skills adopt --into claude --force` refreshes the links. `claude/interceptor: name-collision` in `skills status` is expected — this `Interceptor` skill holds that name. *(2026-10-16)*
+- **Screenshot ignores scroll position.** `interceptor screenshot` (with or without `--full`) captures from y=0 of the document — it does not honor `window.scrollTo`, `scrollIntoView`, `scroll bottom`, or `keys End`. Reach content below the fold with `--region` or `--selector` (next entry). *(2026-04-27)*
+- **`--clip` is broken but `--region` and `--selector` are NOT — reach for those instead.** `interceptor help screenshot` lists `--clip` as a deprecated alias for `--region`; the alias is what's broken, the real flag works. `--region X,Y,W,H` crops any band of a tall page (coordinates are full-page document pixels — the same space `--full` captures in), and `--selector "figure.foo"` / `--element N` capture one element directly, off-screen ones included. `--scale 2` gets retina detail for inspecting type and 1px strokes. *(2026-08-06)*
 - **An element screenshot composites without the page background.** `--selector` returns the element over a transparent/white backdrop, so a dark-theme capture shows correct element fills against a *light* surround — and any `paint-order` knockout or background-colored halo renders as a visible dark blob that does not exist on the real page. Judge theme correctness from `--region` (which includes `body`), never from `--selector`. *(2026-08-06)*
 - **A published Artifact's own content does NOT paint into a screenshot of its claude.ai page.** Capturing `claude.ai/code/artifact/<id>` returns the page chrome (title bar, Share button) over a blank body — the artifact renders in a cross-origin iframe the extension can't composite. Verifying a published artifact this way looks like "the page is empty" and is not evidence about the artifact. Instead open the **source file** via `file:///abs/path.html` and probe that — same HTML, same CSS, no iframe. Only the publish step itself needs the URL. *(2026-08-06)*
 - **Verifying an artifact via `file://` renders it in QUIRKS MODE — theme bugs you see there may not exist on the published page.** Artifact source files carry no `<!doctype html>` (the publish pipeline wraps one on), so a raw `file://` open puts Chrome in quirks mode, where the legacy table-color quirk stops `<table>` inheriting `color` from its parent. Every cell silently paints in the *light*-theme ink, which on a dark ground reads as a genuine contrast bug and burns a debug cycle. Confirm with `document.compatMode` — `BackCompat` is quirks, `CSS1Compat` is standards — and re-probe against a doctype-wrapped copy (`{ printf '<!doctype html>\n<html><head><meta charset="utf-8"></head><body>\n'; cat src.html; printf '\n</body></html>\n'; } > sim.html`) before changing any CSS. Reading `getComputedStyle(el).color` up the ancestor chain localizes it in one call; the screenshot alone cannot distinguish this from a real token bug. *(2026-08-06)*
@@ -470,11 +470,3 @@ Passes all major bot detection:
 | "update", "check version", "rebuild" | `Workflows/Update.md` | Rebuild interceptor from source and verify |
 
 ---
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Interceptor","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ${NDEKO_DATA_DIR}/memory/SKILLS/execution.jsonl
-```

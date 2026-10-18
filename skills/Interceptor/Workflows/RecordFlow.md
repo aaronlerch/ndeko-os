@@ -87,7 +87,7 @@ Read the generated script. Check for:
 ## Notes
 
 - The monitor records from Chrome's content script — it sees real user events, not just interceptor-injected ones.
-- Password and credit card fields are automatically masked in recordings (`***N***` format).
+- Passwords, card numbers, CVVs and one-time codes are masked in recordings as `***SECURE***`.
 - Recordings are stored in JSONL format at the interceptor events path. Use `interceptor monitor export <sid> --json` for raw data.
 - Session recordings persist across interceptor restarts but are per-machine (not synced).
 - For live observation during recording: `interceptor monitor tail` streams events in real time.
